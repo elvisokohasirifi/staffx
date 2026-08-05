@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\LogsActivity;
 use App\TaskStatus;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Database\Factories\TaskFactory;
@@ -25,11 +26,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class Task extends Model
 {
     use CrudTrait;
-
     /** @use HasFactory<TaskFactory> */
     use HasFactory;
 
     use HasUuids;
+
+    use LogsActivity;
 
     public string $identifiableAttribute = 'title';
 

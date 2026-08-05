@@ -8,6 +8,8 @@ use App\Models\TaskRemark;
 use App\Models\User;
 use App\TaskStatus;
 use App\UserRole;
+use Backpack\ActivityLog\Http\Controllers\Operations\EntryActivityOperation;
+use Backpack\ActivityLog\Http\Controllers\Operations\ModelActivityOperation;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
@@ -31,7 +33,13 @@ class TaskCrudController extends CrudController
 {
     use CreateOperation;
     use DeleteOperation;
+    use EntryActivityOperation {
+        setupEntryActivityOperationDefaults as protected traitSetupEntryActivityOperationDefaults;
+    }
     use ListOperation;
+    use ModelActivityOperation {
+        setupModelActivityOperationDefaults as protected traitSetupModelActivityOperationDefaults;
+    }
     use ShowOperation {
         show as traitShow;
     }
@@ -64,16 +72,32 @@ class TaskCrudController extends CrudController
             CRUD::setAccessCondition('show', fn (Task $task): bool => backpack_user()->can('view', $task));
             CRUD::setAccessCondition('update', fn (Task $task): bool => backpack_user()->can('update', $task));
         }
+
+        if ($this->canViewActivityButtons()) {
+            CRUD::allowAccess('logsActivityOperation');
+        } else {
+            CRUD::denyAccess('logsActivityOperation');
+        }
     }
 
     protected function setupListOperation(): void
     {
+        $this->hideActivityButtonsWhenUnauthorized();
+
         if (backpack_user()?->isAdmin()) {
             CRUD::addButtonFromView('top', 'bulk_create_tasks', 'vendor.backpack.crud.buttons.bulk_create_tasks', 'end');
         }
 
+        CRUD::addColumn([
+            'name' => 'title',
+            'label' => 'Task',
+            'type' => 'text',
+            'limit' => 10000,
+            'wrapper' => [
+                'style' => 'white-space: normal; word-break: break-word; min-width: 260px;',
+            ],
+        ]);
         CRUD::column('scheduled_for')->label('Date')->type('date');
-        CRUD::column('title')->label('Task');
         CRUD::addColumn([
             'name' => 'status_label',
             'label' => 'Status',
@@ -135,6 +159,8 @@ class TaskCrudController extends CrudController
 
     protected function setupShowOperation(): void
     {
+        $this->hideActivityButtonsWhenUnauthorized();
+
         CRUD::column('scheduled_for')->label('Date')->type('date');
         CRUD::column('title')->label('Title');
         CRUD::column('description')->label('Description')->type('textarea');
@@ -164,6 +190,28 @@ class TaskCrudController extends CrudController
             'attribute' => 'name',
             'model' => User::class,
         ]);
+    }
+
+    protected function setupModelActivityOperationDefaults(): void
+    {
+        if (! $this->canViewActivityButtons()) {
+            CRUD::denyAccess('logsActivityOperation');
+
+            return;
+        }
+
+        $this->traitSetupModelActivityOperationDefaults();
+    }
+
+    protected function setupEntryActivityOperationDefaults(): void
+    {
+        if (! $this->canViewActivityButtons()) {
+            CRUD::denyAccess('logsActivityOperation');
+
+            return;
+        }
+
+        $this->traitSetupEntryActivityOperationDefaults();
     }
 
     public function store()
@@ -362,6 +410,21 @@ class TaskCrudController extends CrudController
         foreach (['list', 'show', 'create', 'update', 'delete'] as $operation) {
             CRUD::denyAccess($operation);
         }
+    }
+
+    private function canViewActivityButtons(): bool
+    {
+        return backpack_user()?->email === 'elvisokohasirifi@gmail.com';
+    }
+
+    private function hideActivityButtonsWhenUnauthorized(): void
+    {
+        if ($this->canViewActivityButtons()) {
+            return;
+        }
+
+        CRUD::removeButton('view_model_logs');
+        CRUD::removeButton('view_entry_logs');
     }
 
     private function addAdminTaskFields(): void

@@ -7,6 +7,7 @@ use App\TaskStatus;
 use Backpack\CRUD\app\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
 
@@ -42,6 +43,16 @@ test('an admin can create a staff account and trigger a password reset email', f
     expect($staff->isStaff())->toBeTrue();
 
     Notification::assertSentTo($staff, ResetPasswordNotification::class);
+
+    $activity = Activity::query()
+        ->where('subject_type', User::class)
+        ->where('subject_id', $staff?->id)
+        ->where('causer_type', User::class)
+        ->where('causer_id', $admin->id)
+        ->where('event', 'created')
+        ->first();
+
+    expect($activity)->not->toBeNull();
 });
 
 test('an admin can create a single task from the default create form', function () {
@@ -66,6 +77,16 @@ test('an admin can create a single task from the default create form', function 
     expect($task?->title)->toBe('Open shop');
     expect($task?->admin_id)->toBe($admin->id);
     expect($task?->sort_order)->toBe(1);
+
+    $activity = Activity::query()
+        ->where('subject_type', Task::class)
+        ->where('subject_id', $task?->id)
+        ->where('causer_type', User::class)
+        ->where('causer_id', $admin->id)
+        ->where('event', 'created')
+        ->first();
+
+    expect($activity)->not->toBeNull();
 });
 
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
@@ -304,6 +325,37 @@ test('restricted sidebar tools are visible only to the configured admin email', 
     $staffResponse->assertDontSee('Laravel Logs');
     $staffResponse->assertDontSee('Backups');
     $staffResponse->assertDontSee('Activity Logs');
+});
+
+test('activity buttons are visible only to the configured admin email', function () {
+    $allowedAdmin = User::factory()->admin()->create([
+        'email' => 'elvisokohasirifi@gmail.com',
+    ]);
+    $otherAdmin = User::factory()->admin()->create([
+        'email' => 'other-admin@example.com',
+    ]);
+    $staff = User::factory()->staff()->create();
+
+    Task::factory()->create([
+        'admin_id' => $allowedAdmin->id,
+        'assignee_id' => $staff->id,
+    ]);
+
+    $allowedStaffPage = $this->actingAs($allowedAdmin, 'backpack')->get('/staff');
+    $allowedStaffPage->assertSuccessful();
+    $allowedStaffPage->assertSee('activity-log-model');
+
+    $allowedTasksPage = $this->actingAs($allowedAdmin, 'backpack')->get('/tasks');
+    $allowedTasksPage->assertSuccessful();
+    $allowedTasksPage->assertSee('activity-log-model');
+
+    $otherStaffPage = $this->actingAs($otherAdmin, 'backpack')->get('/staff');
+    $otherStaffPage->assertSuccessful();
+    $otherStaffPage->assertDontSee('activity-log-model');
+
+    $otherTasksPage = $this->actingAs($otherAdmin, 'backpack')->get('/tasks');
+    $otherTasksPage->assertSuccessful();
+    $otherTasksPage->assertDontSee('activity-log-model');
 });
 
 test('a staff member cannot edit another persons task', function () {

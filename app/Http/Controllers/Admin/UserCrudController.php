@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Requests\UserRequest;
 use App\Models\User;
 use App\UserRole;
+use Backpack\ActivityLog\Http\Controllers\Operations\EntryActivityOperation;
+use Backpack\ActivityLog\Http\Controllers\Operations\ModelActivityOperation;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
@@ -24,7 +26,13 @@ class UserCrudController extends CrudController
 {
     use CreateOperation;
     use DeleteOperation;
+    use EntryActivityOperation {
+        setupEntryActivityOperationDefaults as protected traitSetupEntryActivityOperationDefaults;
+    }
     use ListOperation;
+    use ModelActivityOperation {
+        setupModelActivityOperationDefaults as protected traitSetupModelActivityOperationDefaults;
+    }
     use ShowOperation {
         show as traitShow;
     }
@@ -48,10 +56,18 @@ class UserCrudController extends CrudController
             CRUD::allowAccess('create');
             CRUD::allowAccess('update');
         }
+
+        if ($this->canViewActivityButtons()) {
+            CRUD::allowAccess('logsActivityOperation');
+        } else {
+            CRUD::denyAccess('logsActivityOperation');
+        }
     }
 
     protected function setupListOperation(): void
     {
+        $this->hideActivityButtonsWhenUnauthorized();
+
         CRUD::column('name')->label('Name');
         CRUD::column('email')->label('Email');
         CRUD::column('email_verified_at')->label('Verified At')->type('datetime');
@@ -73,7 +89,30 @@ class UserCrudController extends CrudController
 
     protected function setupShowOperation(): void
     {
+        $this->hideActivityButtonsWhenUnauthorized();
         $this->setupListOperation();
+    }
+
+    protected function setupModelActivityOperationDefaults(): void
+    {
+        if (! $this->canViewActivityButtons()) {
+            CRUD::denyAccess('logsActivityOperation');
+
+            return;
+        }
+
+        $this->traitSetupModelActivityOperationDefaults();
+    }
+
+    protected function setupEntryActivityOperationDefaults(): void
+    {
+        if (! $this->canViewActivityButtons()) {
+            CRUD::denyAccess('logsActivityOperation');
+
+            return;
+        }
+
+        $this->traitSetupEntryActivityOperationDefaults();
     }
 
     public function store()
@@ -126,6 +165,21 @@ class UserCrudController extends CrudController
         foreach (['list', 'show', 'create', 'update', 'delete'] as $operation) {
             CRUD::denyAccess($operation);
         }
+    }
+
+    private function canViewActivityButtons(): bool
+    {
+        return backpack_user()?->email === 'elvisokohasirifi@gmail.com';
+    }
+
+    private function hideActivityButtonsWhenUnauthorized(): void
+    {
+        if ($this->canViewActivityButtons()) {
+            return;
+        }
+
+        CRUD::removeButton('view_model_logs');
+        CRUD::removeButton('view_entry_logs');
     }
 
     private function passwordBroker()

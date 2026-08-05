@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Traits\LogsActivity;
 use App\UserRole;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -13,19 +14,33 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Spatie\Activitylog\LogOptions;
 
 #[Fillable(['name', 'email', 'password', 'role'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
     use CrudTrait;
-
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     use HasUuids;
 
+    use LogsActivity;
+
     public string $identifiableAttribute = 'name';
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->useLogName('users')
+            ->logOnly([
+                'name',
+                'email',
+                'role',
+            ])
+            ->logOnlyDirty();
+    }
 
     /**
      * Get the attributes that should be cast.
