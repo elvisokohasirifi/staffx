@@ -1,0 +1,33 @@
+models:
+  User:
+    role: enum:admin,staff default:staff
+
+  Task:
+    title: string
+    description: longtext nullable
+    scheduled_for: date index
+    status: enum:pending,in_progress,completed,could_not_be_achieved default:pending index
+    sort_order: unsignedInteger default:0
+    started_at: nullable timestamp
+    completed_at: nullable timestamp
+    outcome_notes: longtext nullable
+    supervisor_id: id foreign:user.id index
+    assignee_id: id foreign:user.id index
+    relationships:
+      belongsTo: User:supervisor_id,assignee_id
+      hasMany: TaskRemark
+    indexes:
+      - index: scheduled_for,status
+      - index: assignee_id,scheduled_for
+      - index: supervisor_id,scheduled_for
+
+  TaskRemark:
+    task_id: id foreign
+    author_id: id foreign:user.id index
+    parent_remark_id: id nullable foreign:task_remarks.id index
+    body: longtext
+    is_admin_remark: boolean default:false
+    acknowledged_at: nullable timestamp
+    relationships:
+      belongsTo: Task,User:author_id,TaskRemark:parent_remark_id
+      hasMany: TaskRemark:parent_remark_id

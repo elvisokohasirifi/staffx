@@ -1,0 +1,137 @@
+<?php
+
+namespace App\Http\Controllers\Admin;
+
+use App\Http\Requests\UserRequest;
+use App\Models\User;
+use App\UserRole;
+use Backpack\CRUD\app\Http\Controllers\CrudController;
+use Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
+use Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
+use Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
+use Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
+use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
+use Backpack\CRUD\app\Library\Auth\PasswordBrokerManager;
+use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
+use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
+
+/**
+ * @property-read CrudPanel $crud
+ */
+class UserCrudController extends CrudController
+{
+    use CreateOperation;
+    use DeleteOperation;
+    use ListOperation;
+    use ShowOperation {
+        show as traitShow;
+    }
+    use UpdateOperation {
+        edit as traitEdit;
+    }
+
+    public function setup(): void
+    {
+        CRUD::setModel(User::class);
+        CRUD::setRoute(trim((string) config('backpack.base.route_prefix'), '/').'/staff');
+        CRUD::setEntityNameStrings('staff member', 'staff');
+
+        CRUD::addClause('where', 'role', UserRole::Staff->value);
+
+        $this->denyAllAccess();
+
+        if (backpack_user()?->isAdmin()) {
+            CRUD::allowAccess('list');
+            CRUD::allowAccess('show');
+            CRUD::allowAccess('create');
+            CRUD::allowAccess('update');
+        }
+    }
+
+    protected function setupListOperation(): void
+    {
+        CRUD::column('name')->label('Name');
+        CRUD::column('email')->label('Email');
+        CRUD::column('email_verified_at')->label('Verified At')->type('datetime');
+        CRUD::column('created_at')->label('Added On')->type('datetime');
+    }
+
+    protected function setupCreateOperation(): void
+    {
+        CRUD::setValidation(UserRequest::class);
+
+        CRUD::field('name')->label('Name')->type('text');
+        CRUD::field('email')->label('Email')->type('email');
+    }
+
+    protected function setupUpdateOperation(): void
+    {
+        $this->setupCreateOperation();
+    }
+
+    protected function setupShowOperation(): void
+    {
+        $this->setupListOperation();
+    }
+
+    public function store()
+    {
+        $this->crud->hasAccessOrFail('create');
+        $request = $this->crud->validateRequest();
+        $this->crud->registerFieldEvents();
+
+        $item = $this->crud->create(array_merge(
+            $this->crud->getStrippedSaveRequest($request),
+            [
+                'role' => UserRole::Staff->value,
+                'password' => Str::password(32),
+            ],
+        ));
+        $this->data['entry'] = $this->crud->entry = $item;
+
+        \Alert::success(trans('backpack::crud.insert_success'))->flash();
+        $this->crud->setSaveAction();
+
+        $status = $this->passwordBroker()->sendResetLink(['email' => $item->email]);
+
+        if ($status === Password::RESET_LINK_SENT) {
+            \Alert::info('A password reset link was emailed to the new staff member.')->flash();
+        } else {
+            \Alert::warning(trans($status))->flash();
+        }
+
+        return $this->crud->performSaveAction($item->getKey());
+    }
+
+    public function edit($id)
+    {
+        $staff = User::query()->findOrFail($id);
+        abort_unless(backpack_user()->can('update', $staff), 403);
+
+        return $this->traitEdit($id);
+    }
+
+    public function show($id)
+    {
+        $staff = User::query()->findOrFail($id);
+        abort_unless(backpack_user()->can('view', $staff), 403);
+
+        return $this->traitShow($id);
+    }
+
+    private function denyAllAccess(): void
+    {
+        foreach (['list', 'show', 'create', 'update', 'delete'] as $operation) {
+            CRUD::denyAccess($operation);
+        }
+    }
+
+    private function passwordBroker()
+    {
+        $manager = new PasswordBrokerManager(app());
+
+        return $manager->broker(config('backpack.base.passwords'));
+    }
+}
