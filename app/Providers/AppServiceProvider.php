@@ -57,13 +57,15 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $todayTasks = (clone $statsQuery)->count();
+            $completedTasks = (clone $statsQuery)->summaryCompleted()->count();
 
             $view->with('taskDashboardStats', [
                 'due_today' => $todayTasks,
                 'pending' => (clone $statsQuery)->summaryPending()->count(),
                 'in_progress' => (clone $statsQuery)->where('status', TaskStatus::InProgress->value)->count(),
-                'completed' => (clone $statsQuery)->summaryCompleted()->count(),
+                'completed' => $completedTasks,
                 'could_not_be_achieved' => (clone $statsQuery)->where('status', TaskStatus::CouldNotBeAchieved->value)->count(),
+                'completion_rate' => $todayTasks > 0 ? round(($completedTasks / $todayTasks) * 100, 1) : 0.0,
             ]);
             $view->with('adminTodayTasks', $adminTodayTasks);
             $view->with('staffPendingTasks', $pendingTasks);

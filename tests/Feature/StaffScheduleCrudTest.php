@@ -622,6 +622,15 @@ test('a staff members dashboard shows only their pending tasks', function () {
         'title' => 'Completed task for staff',
         'scheduled_for' => today()->toDateString(),
         'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Blocked task for staff',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::CouldNotBeAchieved->value,
     ]);
 
     Task::factory()->create([
@@ -643,9 +652,16 @@ test('a staff members dashboard shows only their pending tasks', function () {
     $response = $this->actingAs($staff, 'backpack')->get('/dashboard');
 
     $response->assertSuccessful();
+    $response->assertSee('Pending Tasks');
+    $response->assertSee('Completed Today');
+    $response->assertSee('Could Not Be Completed');
+    $response->assertSee('Completion Rate');
+    $response->assertSee('1');
+    $response->assertSee('33.3%');
     $response->assertSee('My Pending Tasks Due Today');
     $response->assertSee($pendingTask->title);
     $response->assertDontSee('Completed task for staff');
+    $response->assertDontSee('Blocked task for staff');
     $response->assertDontSee('Another staff pending task');
     $response->assertDontSee('Tomorrow pending task for staff');
 });

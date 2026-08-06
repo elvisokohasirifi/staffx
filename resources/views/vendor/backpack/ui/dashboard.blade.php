@@ -8,6 +8,7 @@
             'in_progress' => 0,
             'completed' => 0,
             'could_not_be_achieved' => 0,
+            'completion_rate' => 0.0,
         ];
         $todayTasks = $adminTodayTasks ?? collect();
         $pendingTasks = $staffPendingTasks ?? collect();
@@ -108,11 +109,35 @@
         </div>
     @else
         <div class="row g-3 mb-4">
-            <div class="col-md-4">
+            <div class="col-sm-6 col-xl-3">
                 <div class="card border-0 bg-warning text-dark h-100">
                     <div class="card-body">
                         <div class="text-uppercase small fw-semibold">Pending Tasks</div>
-                        <div class="display-6 fw-bold">{{ $pendingTasks->count() }}</div>
+                        <div class="display-6 fw-bold">{{ $stats['pending'] }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card border-0 bg-success text-white h-100">
+                    <div class="card-body">
+                        <div class="text-uppercase small fw-semibold">Completed Today</div>
+                        <div class="display-6 fw-bold">{{ $stats['completed'] }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card border-0 bg-danger text-white h-100">
+                    <div class="card-body">
+                        <div class="text-uppercase small fw-semibold">Could Not Be Completed</div>
+                        <div class="display-6 fw-bold">{{ $stats['could_not_be_achieved'] }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card border-0 bg-primary text-white h-100">
+                    <div class="card-body">
+                        <div class="text-uppercase small fw-semibold">Completion Rate</div>
+                        <div class="display-6 fw-bold">{{ number_format($stats['completion_rate'], 1) }}%</div>
                     </div>
                 </div>
             </div>
