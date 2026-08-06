@@ -1,5 +1,14 @@
 @extends(backpack_view('blank'))
 
+@push('after_styles')
+    <style>
+        .mobile-table-scroll {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+    </style>
+@endpush
+
 @section('content')
     @php
         $stats = $taskDashboardStats ?? [
@@ -73,8 +82,8 @@
                 @if($todayTasks->isEmpty())
                     <div class="p-4 text-muted">There are no tasks due today.</div>
                 @else
-                    <div class="table-responsive">
-                        <table class="table mb-0">
+                    <div class="table-responsive mobile-table-scroll">
+                        <table class="table mb-0" style="min-width: 720px;">
                             <thead>
                                 <tr>
                                     <th>Staff</th>
@@ -151,8 +160,8 @@
                 @if($pendingTasks->isEmpty())
                     <div class="p-4 text-muted">You do not have any pending tasks due today.</div>
                 @else
-                    <div class="table-responsive">
-                        <table class="table mb-0">
+                    <div class="table-responsive mobile-table-scroll">
+                        <table class="table mb-0" style="min-width: 720px;">
                             <thead>
                                 <tr>
                                     <th>Scheduled</th>

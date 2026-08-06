@@ -1,5 +1,48 @@
 @extends(backpack_view('blank'))
 
+@push('after_styles')
+    <style>
+        .summary-table-column {
+            min-width: 0;
+        }
+
+        .summary-table-card {
+            min-width: 0;
+        }
+
+        .summary-table-card .card-body {
+            min-width: 0;
+        }
+
+        .mobile-table-scroll {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+            overflow-y: hidden;
+            -webkit-overflow-scrolling: touch;
+            overscroll-behavior-x: contain;
+        }
+
+        .staff-summary-table-inner {
+            min-width: 760px;
+        }
+
+        .staff-summary-table {
+            width: 100%;
+            margin-bottom: 0;
+        }
+
+        .staff-summary-mobile-card {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .staff-summary-mobile-card:last-child {
+            border-bottom: 0;
+        }
+    </style>
+@endpush
+
 @php
     $defaultBreadcrumbs = [
         trans('backpack::crud.admin') => url(config('backpack.base.route_prefix'), 'dashboard'),
@@ -109,8 +152,8 @@
                     </div>
                 </div>
 
-                <div class="col-lg-7">
-                    <div class="card h-100">
+                <div class="col-lg-7 summary-table-column">
+                    <div class="card h-100 summary-table-card">
                         <div class="card-header">
                             <h4 class="mb-0">Staff Summary</h4>
                         </div>
@@ -118,34 +161,68 @@
                             @if($staffSummaries->isEmpty())
                                 <div class="p-4 text-muted">There are no staff members to summarize.</div>
                             @else
-                                <div class="table-responsive">
-                                    <table class="table mb-0">
-                                        <thead>
-                                            <tr>
-                                                <th>Staff</th>
-                                                <th>Assigned</th>
-                                                <th>Completed</th>
-                                                <th>Pending</th>
-                                                <th>Could Not Be Completed</th>
-                                                <th>Completion Rate</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            @foreach($staffSummaries as $summary)
+                                <div class="d-block d-xl-none">
+                                    @foreach($staffSummaries as $summary)
+                                        <div class="staff-summary-mobile-card p-3">
+                                            <div class="fw-semibold">{{ $summary['staff']->name }}</div>
+                                            <div class="text-muted small mb-3">{{ $summary['staff']->email }}</div>
+
+                                            <div class="row g-3">
+                                                <div class="col-6">
+                                                    <div class="text-uppercase small text-muted">Assigned</div>
+                                                    <div class="fw-semibold">{{ $summary['assigned_count'] }}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="text-uppercase small text-muted">Completed</div>
+                                                    <div class="fw-semibold">{{ $summary['completed_count'] }}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="text-uppercase small text-muted">Pending</div>
+                                                    <div class="fw-semibold">{{ $summary['pending_count'] }}</div>
+                                                </div>
+                                                <div class="col-6">
+                                                    <div class="text-uppercase small text-muted">Could Not Be Completed</div>
+                                                    <div class="fw-semibold">{{ $summary['could_not_be_achieved_count'] }}</div>
+                                                </div>
+                                                <div class="col-12">
+                                                    <div class="text-uppercase small text-muted">Completion Rate</div>
+                                                    <div class="fw-semibold">{{ number_format($summary['completion_rate'], 1) }}%</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+
+                                <div class="table-responsive mobile-table-scroll d-none d-xl-block">
+                                    <div class="staff-summary-table-inner">
+                                        <table class="table staff-summary-table">
+                                            <thead>
                                                 <tr>
-                                                    <td>
-                                                        <div class="fw-semibold">{{ $summary['staff']->name }}</div>
-                                                        <div class="text-muted small">{{ $summary['staff']->email }}</div>
-                                                    </td>
-                                                    <td>{{ $summary['assigned_count'] }}</td>
-                                                    <td>{{ $summary['completed_count'] }}</td>
-                                                    <td>{{ $summary['pending_count'] }}</td>
-                                                    <td>{{ $summary['could_not_be_achieved_count'] }}</td>
-                                                    <td>{{ number_format($summary['completion_rate'], 1) }}%</td>
+                                                    <th>Staff</th>
+                                                    <th>Assigned</th>
+                                                    <th>Completed</th>
+                                                    <th>Pending</th>
+                                                    <th>Could Not Be Completed</th>
+                                                    <th>Completion Rate</th>
                                                 </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody>
+                                                @foreach($staffSummaries as $summary)
+                                                    <tr>
+                                                        <td>
+                                                            <div class="fw-semibold">{{ $summary['staff']->name }}</div>
+                                                            <div class="text-muted small">{{ $summary['staff']->email }}</div>
+                                                        </td>
+                                                        <td>{{ $summary['assigned_count'] }}</td>
+                                                        <td>{{ $summary['completed_count'] }}</td>
+                                                        <td>{{ $summary['pending_count'] }}</td>
+                                                        <td>{{ $summary['could_not_be_achieved_count'] }}</td>
+                                                        <td>{{ number_format($summary['completion_rate'], 1) }}%</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             @endif
                         </div>

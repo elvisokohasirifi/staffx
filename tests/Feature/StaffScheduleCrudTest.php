@@ -275,6 +275,8 @@ test('the dashboard shows todays task summary cards', function () {
     $response->assertSee('Pending');
     $response->assertSee('Completed');
     $response->assertSee('2');
+    $response->assertSee('mobile-table-scroll');
+    $response->assertSee('min-width: 720px;', false);
     $response->assertSee($pendingTask->title);
     $response->assertSee('Send report');
     $response->assertSee($staff->name);
@@ -722,6 +724,8 @@ test('admins can view the summary page with staff totals and status distribution
     $response->assertSee('Task Summary');
     $response->assertSee('Task Status Distribution (Aug 1, 2026 - Aug 31, 2026)');
     $response->assertSee('Staff Summary');
+    $response->assertSee('mobile-table-scroll');
+    $response->assertSee('min-width: 760px;', false);
     $response->assertSee('Ada Staff');
     $response->assertSee('ada@example.com');
     $response->assertSee('Zoe Staff');
