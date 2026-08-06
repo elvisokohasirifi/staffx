@@ -29,6 +29,7 @@ class TaskFactory extends Factory
                 TaskStatus::Completed->value,
                 TaskStatus::CouldNotBeAchieved->value,
             ]),
+            'approved_as_completed' => false,
             'sort_order' => fake()->numberBetween(0, 10),
             'outcome_notes' => fake()->optional()->sentence(),
             'admin_id' => User::factory()->admin(),

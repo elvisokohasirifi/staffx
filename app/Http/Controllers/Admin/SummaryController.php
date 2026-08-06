@@ -10,7 +10,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 
 class SummaryController extends Controller
 {
@@ -37,12 +36,13 @@ class SummaryController extends Controller
             ->selectRaw('
                 assignee_id,
                 COUNT(*) as assigned_count,
-                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as completed_count,
-                SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending_count,
+                SUM(CASE WHEN status = ? AND approved_as_completed = 1 THEN 1 ELSE 0 END) as completed_count,
+                SUM(CASE WHEN status = ? OR (status = ? AND approved_as_completed = 0) THEN 1 ELSE 0 END) as pending_count,
                 SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as could_not_be_achieved_count
             ', [
                 TaskStatus::Completed->value,
                 TaskStatus::Pending->value,
+                TaskStatus::Completed->value,
                 TaskStatus::CouldNotBeAchieved->value,
             ])
             ->groupBy('assignee_id')
@@ -83,10 +83,12 @@ class SummaryController extends Controller
 
     private function buildStatusCounts($query): Collection
     {
-        $counts = $query
-            ->select('status', DB::raw('COUNT(*) as aggregate'))
-            ->groupBy('status')
-            ->pluck('aggregate', 'status');
+        $counts = [
+            TaskStatus::Pending->value => (clone $query)->summaryPending()->count(),
+            TaskStatus::InProgress->value => (clone $query)->where('status', TaskStatus::InProgress->value)->count(),
+            TaskStatus::Completed->value => (clone $query)->summaryCompleted()->count(),
+            TaskStatus::CouldNotBeAchieved->value => (clone $query)->where('status', TaskStatus::CouldNotBeAchieved->value)->count(),
+        ];
 
         return collect(TaskStatus::options())->map(function (string $label, string $status) use ($counts): array {
             return [

@@ -93,7 +93,7 @@
                                                 <div class="text-muted small">{{ \Illuminate\Support\Str::limit($task->description, 100) }}</div>
                                             @endif
                                         </td>
-                                        <td>{{ \App\TaskStatus::options()[$task->status->value] ?? $task->status->value }}</td>
+                                        <td>{{ \App\TaskStatus::options()[$task->summaryStatus()->value] ?? $task->summaryStatus()->value }}</td>
                                         <td>{{ $task->remarks_count }}</td>
                                         <td class="text-end">
                                             <a href="{{ backpack_url("tasks/{$task->getKey()}/show") }}" class="btn btn-sm btn-outline-primary">Open Task</a>

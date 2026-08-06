@@ -68,6 +68,7 @@ class TaskRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'scheduled_for' => ['required', 'date'],
             'status' => ['required', Rule::enum(TaskStatus::class)],
+            'approved_as_completed' => ['sometimes', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'outcome_notes' => ['nullable', 'string', 'max:5000'],
             'assignee_id' => [

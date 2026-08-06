@@ -79,6 +79,10 @@ class UserCrudController extends CrudController
                 ->stack('line')
                 ->view('vendor.backpack.crud.buttons.impersonate_user');
         }
+
+        CRUD::button('view_tasks')
+            ->stack('line')
+            ->view('vendor.backpack.crud.buttons.view_tasks');
     }
 
     protected function setupCreateOperation(): void

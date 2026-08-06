@@ -107,6 +107,9 @@ class TaskCrudController extends CrudController
             'type' => 'text',
             'value' => fn (Task $task): string => TaskStatus::options()[$task->status->value] ?? $task->status->value,
         ]);
+        CRUD::column('approved_as_completed')
+            ->label('Approved Completed')
+            ->type('boolean');
         CRUD::column('remarks_count')->label('Remarks')->type('number');
 
         if (backpack_user()?->isAdmin()) {
@@ -154,7 +157,7 @@ class TaskCrudController extends CrudController
         CRUD::setValidation(TaskRequest::class);
 
         if (backpack_user()?->isAdmin()) {
-            $this->addAdminTaskFields();
+            $this->addAdminTaskFields(includeApprovalField: true);
         } else {
             $this->setupCreateOperation();
         }
@@ -165,7 +168,15 @@ class TaskCrudController extends CrudController
         $this->hideActivityButtonsWhenUnauthorized();
 
         CRUD::column('scheduled_for')->label('Date')->type('date');
-        CRUD::column('title')->label('Title');
+        CRUD::addColumn([
+            'name' => 'title',
+            'label' => 'Title',
+            'type' => 'text',
+            'limit' => 10000,
+            'wrapper' => [
+                'style' => 'white-space: normal; word-break: break-word;',
+            ],
+        ]);
         CRUD::column('description')->label('Description')->type('textarea');
         CRUD::addColumn([
             'name' => 'status_label',
@@ -173,6 +184,9 @@ class TaskCrudController extends CrudController
             'type' => 'text',
             'value' => fn (Task $task): string => TaskStatus::options()[$task->status->value] ?? $task->status->value,
         ]);
+        CRUD::column('approved_as_completed')
+            ->label('Approved Completed')
+            ->type('boolean');
         CRUD::column('sort_order')->label('Sort Order');
         CRUD::column('outcome_notes')->label('Outcome Notes')->type('textarea');
         CRUD::column('started_at')->label('Started At')->type('datetime');
@@ -474,7 +488,7 @@ class TaskCrudController extends CrudController
         }
     }
 
-    private function addAdminTaskFields(): void
+    private function addAdminTaskFields(bool $includeApprovalField = false): void
     {
         CRUD::field('title')->label('Title')->type('text');
         CRUD::field('description')->label('Description')->type('textarea');
@@ -483,6 +497,12 @@ class TaskCrudController extends CrudController
             fn ($query) => $query->staff()->orderBy('name')->get()
         );
         CRUD::field('status')->label('Status')->type('select_from_array')->options(TaskStatus::options())->default(TaskStatus::Pending->value);
+        if ($includeApprovalField) {
+            CRUD::field('approved_as_completed')
+                ->label('Approved As Completed')
+                ->type('checkbox')
+                ->hint('Only approved completed tasks count as completed in dashboard and summary totals.');
+        }
         CRUD::field('sort_order')->label('Sort Order')->type('number')->default(1)->attributes(['min' => 0]);
         CRUD::field('outcome_notes')->label('Outcome Notes')->type('textarea');
     }

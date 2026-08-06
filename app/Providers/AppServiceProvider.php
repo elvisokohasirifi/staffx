@@ -60,9 +60,9 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('taskDashboardStats', [
                 'due_today' => $todayTasks,
-                'pending' => (clone $statsQuery)->where('status', TaskStatus::Pending->value)->count(),
+                'pending' => (clone $statsQuery)->summaryPending()->count(),
                 'in_progress' => (clone $statsQuery)->where('status', TaskStatus::InProgress->value)->count(),
-                'completed' => (clone $statsQuery)->where('status', TaskStatus::Completed->value)->count(),
+                'completed' => (clone $statsQuery)->summaryCompleted()->count(),
                 'could_not_be_achieved' => (clone $statsQuery)->where('status', TaskStatus::CouldNotBeAchieved->value)->count(),
             ]);
             $view->with('adminTodayTasks', $adminTodayTasks);

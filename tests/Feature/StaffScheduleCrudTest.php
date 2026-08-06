@@ -264,6 +264,7 @@ test('the dashboard shows todays task summary cards', function () {
         'scheduled_for' => today()->toDateString(),
         'title' => 'Send report',
         'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
     ]);
 
     $response = $this->actingAs($admin, 'backpack')->get('/dashboard');
@@ -280,6 +281,69 @@ test('the dashboard shows todays task summary cards', function () {
     $response->assertSee($anotherStaff->name);
     $response->assertSeeInOrder([$anotherStaff->name, $staff->name]);
     $response->assertDontSee('Sort');
+});
+
+test('dashboard counts only approved completed tasks as completed', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Awaiting approval task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Approved task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get('/dashboard');
+
+    $response->assertSuccessful();
+    $response->assertSee('Awaiting approval task');
+    $response->assertSee('Approved task');
+    $response->assertSeeInOrder(['Pending', '1']);
+    $response->assertSeeInOrder(['Completed', '1']);
+});
+
+test('an admin can open a staff members tasks from the staff list', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $response = $this->actingAs($admin, 'backpack')->post('/staff/search', [
+        'draw' => 1,
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => '', 'regex' => 'false'],
+    ]);
+
+    $response->assertSuccessful();
+    $response->assertSee('View Tasks');
+    $response->assertSee('/tasks?staff_id='.$staff->id, false);
+});
+
+test('the task show page displays the full title', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $title = 'Send a performance analysis report and send low-performing churches for Query Meeting/Send a list of query meetings for all defaulting PPCs under Zones (Appraisal Template, Finances, all cell defaulters) (When Needed)';
+
+    $task = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => $title,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get("/tasks/{$task->id}/show");
+
+    $response->assertSuccessful();
+    $response->assertSeeText($title);
 });
 
 test('a staff member cannot open another staff management page', function () {
@@ -610,6 +674,15 @@ test('admins can view the summary page with staff totals and status distribution
         'title' => 'Ada completed task',
         'scheduled_for' => '2026-08-06',
         'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staffOne->id,
+        'title' => 'Ada awaiting approval task',
+        'scheduled_for' => '2026-08-06',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
     ]);
     Task::factory()->create([
         'admin_id' => $admin->id,
@@ -624,6 +697,7 @@ test('admins can view the summary page with staff totals and status distribution
         'title' => 'Zoe outside range task',
         'scheduled_for' => '2026-09-01',
         'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
     ]);
 
     $response = $this->actingAs($admin, 'backpack')->get('/summary?start_date=2026-08-01&end_date=2026-08-31');
@@ -640,8 +714,37 @@ test('admins can view the summary page with staff totals and status distribution
     $response->assertSee('Pending');
     $response->assertSee('Completed');
     $response->assertSee('Could Not Be Achieved');
-    $response->assertSee('50.0%');
+    $response->assertSee('33.3%');
     $response->assertDontSee('Zoe outside range task');
+});
+
+test('admins can approve a completed task from the edit form', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $task = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->put("/tasks/{$task->id}", [
+        'id' => $task->id,
+        'title' => $task->title,
+        'description' => $task->description,
+        'scheduled_for' => $task->scheduled_for->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => '1',
+        'sort_order' => $task->sort_order,
+        'outcome_notes' => $task->outcome_notes,
+        'assignee_id' => $staff->id,
+    ]);
+
+    $response->assertRedirect();
+
+    $task->refresh();
+
+    expect($task->approved_as_completed)->toBeTrue();
 });
 
 test('the summary page shows all time when no date range is selected', function () {
