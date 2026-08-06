@@ -16,7 +16,7 @@
     <div class="mb-4">
         <h2 class="mb-1">{{ backpack_user()?->isAdmin() ? 'Admin Dashboard' : 'My Dashboard' }}</h2>
         <p class="text-muted mb-0">
-            {{ backpack_user()?->isAdmin() ? 'Task summary for '.today()->toFormattedDateString().'.' : 'All pending tasks currently assigned to you.' }}
+            {{ backpack_user()?->isAdmin() ? 'Task summary for '.today()->toFormattedDateString().'.' : 'Pending tasks due today.' }}
         </p>
     </div>
 
@@ -120,11 +120,11 @@
 
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0">My Pending Tasks</h4>
+                <h4 class="mb-0">My Pending Tasks Due Today</h4>
             </div>
             <div class="card-body p-0">
                 @if($pendingTasks->isEmpty())
-                    <div class="p-4 text-muted">You do not have any pending tasks right now.</div>
+                    <div class="p-4 text-muted">You do not have any pending tasks due today.</div>
                 @else
                     <div class="table-responsive">
                         <table class="table mb-0">

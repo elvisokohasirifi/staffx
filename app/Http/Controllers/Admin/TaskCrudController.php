@@ -22,6 +22,7 @@ use Backpack\CRUD\app\Library\Widget;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -83,6 +84,8 @@ class TaskCrudController extends CrudController
     protected function setupListOperation(): void
     {
         $this->hideActivityButtonsWhenUnauthorized();
+        $this->applyTaskFilters();
+        CRUD::setListView('admin.tasks.list');
 
         if (backpack_user()?->isAdmin()) {
             CRUD::addButtonFromView('top', 'bulk_create_tasks', 'vendor.backpack.crud.buttons.bulk_create_tasks', 'end');
@@ -425,6 +428,50 @@ class TaskCrudController extends CrudController
 
         CRUD::removeButton('view_model_logs');
         CRUD::removeButton('view_entry_logs');
+    }
+
+    private function applyTaskFilters(): void
+    {
+        $startDate = $this->parseFilterDate(request()->query('start_date'));
+        $endDate = $this->parseFilterDate(request()->query('end_date'));
+        $staffId = request()->query('staff_id');
+        $status = request()->query('status');
+
+        if ($startDate !== null) {
+            CRUD::addClause('whereDate', 'scheduled_for', '>=', $startDate->toDateString());
+        }
+
+        if ($endDate !== null) {
+            CRUD::addClause('whereDate', 'scheduled_for', '<=', $endDate->toDateString());
+        }
+
+        if (backpack_user()?->isAdmin() && is_string($staffId) && $staffId !== '') {
+            $staffExists = User::query()
+                ->staff()
+                ->whereKey($staffId)
+                ->exists();
+
+            if ($staffExists) {
+                CRUD::addClause('where', 'assignee_id', $staffId);
+            }
+        }
+
+        if (is_string($status) && array_key_exists($status, TaskStatus::options())) {
+            CRUD::addClause('where', 'status', $status);
+        }
+    }
+
+    private function parseFilterDate(mixed $value): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function addAdminTaskFields(): void

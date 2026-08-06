@@ -10,12 +10,24 @@
         </span>
         <div class="d-none d-xl-block ps-2">
             <div>{{ backpack_user()->name }}</div>
-            <div class="mt-1 small text-muted">{{ backpack_user()?->isAdmin() ? 'Admin' : 'Staff' }}</div>
+            <div class="mt-1 small text-muted">
+                {{ backpack_user()?->isAdmin() ? 'Admin' : 'Staff' }}
+                @if(session()->has('impersonator_id'))
+                    · Impersonating
+                @endif
+            </div>
         </div>
     </a>
     <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
         @if(config('backpack.base.setup_my_account_routes'))
             <a href="{{ route('backpack.account.info') }}" class="dropdown-item"><i class="la la-user me-2"></i>{{ trans('backpack::base.my_account') }}</a>
+            <div class="dropdown-divider"></div>
+        @endif
+        @if(session()->has('impersonator_id'))
+            <form method="POST" action="{{ route('staff.stop-impersonating') }}">
+                @csrf
+                <button type="submit" class="dropdown-item"><i class="la la-undo me-2"></i>Stop Impersonating</button>
+            </form>
             <div class="dropdown-divider"></div>
         @endif
         <a href="{{ backpack_url('logout') }}" class="dropdown-item"><i class="la la-lock me-2"></i>{{ trans('backpack::base.logout') }}</a>

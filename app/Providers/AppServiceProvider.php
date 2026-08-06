@@ -47,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
 
                     $pendingTasks = Task::query()
                         ->where('assignee_id', backpack_user()->getKey())
+                        ->whereDate('scheduled_for', today())
                         ->where('status', TaskStatus::Pending->value)
                         ->withCount('remarks')
                         ->orderBy('scheduled_for')

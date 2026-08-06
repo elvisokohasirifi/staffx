@@ -17,6 +17,9 @@ Route::group([
     'namespace' => 'App\Http\Controllers\Admin',
 ], function () { // custom admin routes
     Route::crud('staff', 'UserCrudController');
+    Route::post('staff/{id}/impersonate', 'UserCrudController@impersonate')->name('staff.impersonate');
+    Route::post('stop-impersonating', 'UserCrudController@stopImpersonating')->name('staff.stop-impersonating');
+    Route::get('summary', 'SummaryController@index')->name('summary.index');
     Route::get('tasks/bulk-create', 'TaskCrudController@bulkCreate')->name('tasks.bulk-create');
     Route::post('tasks/bulk-create', 'TaskCrudController@bulkStore')->name('tasks.bulk-store');
     Route::crud('tasks', 'TaskCrudController');

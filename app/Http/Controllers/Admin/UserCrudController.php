@@ -16,6 +16,7 @@ use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
 use Backpack\CRUD\app\Library\Auth\PasswordBrokerManager;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 
@@ -72,6 +73,12 @@ class UserCrudController extends CrudController
         CRUD::column('email')->label('Email');
         CRUD::column('email_verified_at')->label('Verified At')->type('datetime');
         CRUD::column('created_at')->label('Added On')->type('datetime');
+
+        if ($this->canImpersonateUsers()) {
+            CRUD::button('impersonate_user')
+                ->stack('line')
+                ->view('vendor.backpack.crud.buttons.impersonate_user');
+        }
     }
 
     protected function setupCreateOperation(): void
@@ -160,6 +167,37 @@ class UserCrudController extends CrudController
         return $this->traitShow($id);
     }
 
+    public function impersonate(string $id): RedirectResponse
+    {
+        abort_unless($this->canImpersonateUsers(), 403);
+
+        $userToImpersonate = User::query()->findOrFail($id);
+        abort_if($userToImpersonate->is(backpack_user()), 422, 'You are already using this account.');
+        $impersonatorId = session('impersonator_id', backpack_user()->getKey());
+
+        backpack_auth()->login($userToImpersonate);
+        session()->put('impersonator_id', $impersonatorId);
+
+        \Alert::info('You are now impersonating '.$userToImpersonate->name.'.')->flash();
+
+        return redirect()->to(backpack_url('dashboard'));
+    }
+
+    public function stopImpersonating(): RedirectResponse
+    {
+        $impersonatorId = session()->pull('impersonator_id');
+        abort_unless(is_string($impersonatorId) && $impersonatorId !== '', 403);
+
+        $impersonator = User::query()->findOrFail($impersonatorId);
+        abort_unless($impersonator->canImpersonateUsers(), 403);
+
+        backpack_auth()->login($impersonator);
+
+        \Alert::success('You have returned to your account.')->flash();
+
+        return redirect()->to(backpack_url('dashboard'));
+    }
+
     private function denyAllAccess(): void
     {
         foreach (['list', 'show', 'create', 'update', 'delete'] as $operation) {
@@ -170,6 +208,11 @@ class UserCrudController extends CrudController
     private function canViewActivityButtons(): bool
     {
         return backpack_user()?->email === 'elvisokohasirifi@gmail.com';
+    }
+
+    private function canImpersonateUsers(): bool
+    {
+        return backpack_user()?->canImpersonateUsers() ?? false;
     }
 
     private function hideActivityButtonsWhenUnauthorized(): void

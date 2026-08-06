@@ -21,11 +21,11 @@ use Spatie\Activitylog\LogOptions;
 class User extends Authenticatable
 {
     use CrudTrait;
+
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
     use HasUuids;
-
     use LogsActivity;
 
     public string $identifiableAttribute = 'name';
@@ -90,6 +90,11 @@ class User extends Authenticatable
     public function isStaff(): bool
     {
         return $this->role === UserRole::Staff;
+    }
+
+    public function canImpersonateUsers(): bool
+    {
+        return $this->isAdmin();
     }
 
     public function avatar(): string

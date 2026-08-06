@@ -1,7 +1,7 @@
 <?php
 
+use App\Http\Middleware\BackpackAuthenticateSession;
 use App\Http\Middleware\CheckIfAdmin;
-use Backpack\CRUD\app\Http\Middleware\AuthenticateSession;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 
 return [
@@ -116,7 +116,7 @@ return [
     'middleware_class' => [
         CheckIfAdmin::class,
         ConvertEmptyStringsToNull::class,
-        AuthenticateSession::class,
+        BackpackAuthenticateSession::class,
         // \Backpack\CRUD\app\Http\Middleware\UseBackpackAuthGuardInsteadOfDefaultAuthGuard::class,
     ],
 
