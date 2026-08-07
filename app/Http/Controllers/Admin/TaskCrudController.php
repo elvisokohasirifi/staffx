@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Actions\Tasks\SendTaskNotificationsAction;
 use App\Http\Requests\TaskRequest;
 use App\Models\Task;
 use App\Models\TaskRemark;
@@ -23,6 +24,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -46,6 +48,12 @@ class TaskCrudController extends CrudController
     }
     use UpdateOperation {
         edit as traitEdit;
+        update as traitUpdate;
+    }
+
+    public function __construct(private SendTaskNotificationsAction $sendTaskNotifications)
+    {
+        parent::__construct();
     }
 
     public function setup(): void
@@ -247,6 +255,8 @@ class TaskCrudController extends CrudController
         ));
         $this->data['entry'] = $this->crud->entry = $item;
 
+        $this->sendTaskNotifications->sendAssigned(collect([$item]));
+
         \Alert::success(trans('backpack::crud.insert_success'))->flash();
         $this->crud->setSaveAction();
 
@@ -293,27 +303,49 @@ class TaskCrudController extends CrudController
                 ->withInput();
         }
 
-        DB::transaction(function () use ($validated, $taskTitles): void {
+        $createdTasks = DB::transaction(function () use ($validated, $taskTitles): Collection {
             $startingSortOrder = (int) Task::query()
                 ->where('assignee_id', $validated['assignee_id'])
                 ->whereDate('scheduled_for', $validated['scheduled_for'])
                 ->max('sort_order');
 
+            $createdTasks = collect();
+
             foreach ($taskTitles as $index => $title) {
-                Task::query()->create([
+                $createdTasks->push(Task::query()->create([
                     'title' => $title,
                     'scheduled_for' => $validated['scheduled_for'],
                     'status' => TaskStatus::Pending,
                     'sort_order' => $startingSortOrder + $index + 1,
                     'admin_id' => backpack_user()->getKey(),
                     'assignee_id' => $validated['assignee_id'],
-                ]);
+                ]));
             }
+
+            return $createdTasks;
         });
+
+        $this->sendTaskNotifications->sendAssigned($createdTasks);
 
         \Alert::success($taskTitles->count().' tasks were assigned successfully.')->flash();
 
         return redirect()->to(backpack_url('tasks'));
+    }
+
+    public function update()
+    {
+        $task = Task::query()->findOrFail((string) request()->route('id'));
+        $wasApprovedAsCompleted = $task->approved_as_completed;
+
+        $response = $this->traitUpdate();
+
+        $task->refresh();
+
+        if (! $wasApprovedAsCompleted && $task->approved_as_completed && $task->status === TaskStatus::Completed) {
+            $this->sendTaskNotifications->sendApproved(collect([$task]));
+        }
+
+        return $response;
     }
 
     public function edit($id)
@@ -437,6 +469,8 @@ class TaskCrudController extends CrudController
             'approved_as_completed' => true,
         ]);
 
+        $this->sendTaskNotifications->sendApproved(collect([$task]));
+
         \Alert::success('Task approved as completed.')->flash();
 
         return redirect()->back();
@@ -446,12 +480,18 @@ class TaskCrudController extends CrudController
     {
         abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
 
-        $approvedCount = Task::query()
+        $approvedTasks = Task::query()
+            ->with('assignee')
             ->where('status', TaskStatus::Completed->value)
             ->where('approved_as_completed', false)
-            ->update([
-                'approved_as_completed' => true,
-            ]);
+            ->get();
+
+        $approvedTasks->each(fn (Task $task) => $task->update([
+            'approved_as_completed' => true,
+        ]));
+
+        $this->sendTaskNotifications->sendApproved($approvedTasks);
+        $approvedCount = $approvedTasks->count();
 
         \Alert::success("{$approvedCount} task(s) approved as completed.")->flash();
 

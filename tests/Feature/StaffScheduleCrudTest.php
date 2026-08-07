@@ -3,6 +3,8 @@
 use App\Models\Task;
 use App\Models\TaskRemark;
 use App\Models\User;
+use App\Notifications\TasksApprovedNotification;
+use App\Notifications\TasksAssignedNotification;
 use App\TaskStatus;
 use Backpack\CRUD\app\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -56,6 +58,8 @@ test('an admin can create a staff account and trigger a password reset email', f
 });
 
 test('an admin can create a single task from the default create form', function () {
+    Notification::fake();
+
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
@@ -78,6 +82,11 @@ test('an admin can create a single task from the default create form', function 
     expect($task?->admin_id)->toBe($admin->id);
     expect($task?->sort_order)->toBe(1);
 
+    Notification::assertSentTo($staff, TasksAssignedNotification::class, function (TasksAssignedNotification $notification): bool {
+        return count($notification->tasks) === 1
+            && $notification->tasks[0]['title'] === 'Open shop';
+    });
+
     $activity = Activity::query()
         ->where('subject_type', Task::class)
         ->where('subject_id', $task?->id)
@@ -90,6 +99,8 @@ test('an admin can create a single task from the default create form', function 
 });
 
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
+    Notification::fake();
+
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
@@ -114,6 +125,15 @@ test('an admin can assign many tasks to a staff member from the bulk create page
         'Send report',
     ]);
     expect($tasks->pluck('sort_order')->all())->toBe([1, 2, 3]);
+
+    Notification::assertSentTo($staff, TasksAssignedNotification::class, function (TasksAssignedNotification $notification): bool {
+        return count($notification->tasks) === 3
+            && collect($notification->tasks)->pluck('title')->all() === [
+                'Open shop',
+                'Check inventory',
+                'Send report',
+            ];
+    });
 
     $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
 
@@ -636,6 +656,8 @@ test('admins see a pending approvals sidebar badge and can open the approval que
 });
 
 test('an admin can approve a completed task from the pending approval queue action', function () {
+    Notification::fake();
+
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
     $task = Task::factory()->create([
@@ -652,9 +674,16 @@ test('an admin can approve a completed task from the pending approval queue acti
     $task->refresh();
 
     expect($task->approved_as_completed)->toBeTrue();
+
+    Notification::assertSentTo($staff, TasksApprovedNotification::class, function (TasksApprovedNotification $notification) use ($task): bool {
+        return count($notification->tasks) === 1
+            && $notification->tasks[0]['title'] === $task->title;
+    });
 });
 
 test('an admin can approve all pending completed tasks at once', function () {
+    Notification::fake();
+
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
@@ -694,6 +723,14 @@ test('an admin can approve all pending completed tasks at once', function () {
     expect($firstPendingTask->approved_as_completed)->toBeTrue();
     expect($secondPendingTask->approved_as_completed)->toBeTrue();
     expect($alreadyApprovedTask->approved_as_completed)->toBeTrue();
+
+    Notification::assertSentTo($staff, TasksApprovedNotification::class, function (TasksApprovedNotification $notification) use ($firstPendingTask, $secondPendingTask): bool {
+        return count($notification->tasks) === 2
+            && collect($notification->tasks)->pluck('title')->all() === [
+                $firstPendingTask->title,
+                $secondPendingTask->title,
+            ];
+    });
 });
 
 test('staff users do not see the staff filter on the task list', function () {
@@ -855,6 +892,8 @@ test('admins can view the summary page with staff totals and status distribution
 });
 
 test('admins can approve a completed task from the edit form', function () {
+    Notification::fake();
+
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
     $task = Task::factory()->create([
@@ -881,6 +920,11 @@ test('admins can approve a completed task from the edit form', function () {
     $task->refresh();
 
     expect($task->approved_as_completed)->toBeTrue();
+
+    Notification::assertSentTo($staff, TasksApprovedNotification::class, function (TasksApprovedNotification $notification) use ($task): bool {
+        return count($notification->tasks) === 1
+            && $notification->tasks[0]['title'] === $task->title;
+    });
 });
 
 test('the summary page shows all time when no date range is selected', function () {
