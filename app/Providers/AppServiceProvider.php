@@ -22,6 +22,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        View::composer([
+            'vendor.backpack.ui.inc.menu_items',
+            'backpack.ui::inc.menu_items',
+            'backpack.theme-tabler::inc.menu_items',
+        ], function ($view): void {
+            $pendingTaskApprovalCount = 0;
+
+            if (backpack_auth()->check() && backpack_user()?->isAdmin()) {
+                $pendingTaskApprovalCount = Task::query()
+                    ->where('status', TaskStatus::Completed->value)
+                    ->where('approved_as_completed', false)
+                    ->count();
+            }
+
+            $view->with('pendingTaskApprovalCount', $pendingTaskApprovalCount);
+        });
+
         View::composer(array_unique([
             backpack_view('dashboard'),
             'backpack.ui::dashboard',

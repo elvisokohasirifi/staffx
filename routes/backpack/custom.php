@@ -27,6 +27,8 @@ Route::group([
     Route::post('tasks/{id}/remarks', 'TaskCrudController@storeRemark')->name('tasks.remarks.store');
     Route::post('tasks/{id}/mark-in-progress', 'TaskCrudController@markInProgress')->name('tasks.mark-in-progress');
     Route::post('tasks/{id}/mark-completed', 'TaskCrudController@markCompleted')->name('tasks.mark-completed');
+    Route::post('tasks/{id}/approve-completed', 'TaskCrudController@approveCompleted')->name('tasks.approve-completed');
+    Route::post('tasks/approve-completed-all', 'TaskCrudController@approveAllCompleted')->name('tasks.approve-completed-all');
 }); // this should be the absolute last line of this file
 
 /**

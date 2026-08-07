@@ -89,6 +89,10 @@ class TaskCrudController extends CrudController
 
         if (backpack_user()?->isAdmin()) {
             CRUD::addButtonFromView('top', 'bulk_create_tasks', 'vendor.backpack.crud.buttons.bulk_create_tasks', 'end');
+            if (request()->query('approval_status') === 'pending') {
+                CRUD::addButtonFromView('top', 'approve_all_completed_tasks', 'vendor.backpack.crud.buttons.approve_all_completed_tasks', 'end');
+            }
+            CRUD::addButtonFromView('line', 'approve_completed_task', 'vendor.backpack.crud.buttons.approve_completed_task', 'beginning');
         }
 
         CRUD::addColumn([
@@ -422,6 +426,38 @@ class TaskCrudController extends CrudController
         return redirect()->to(backpack_url("tasks/{$task->getKey()}/show"));
     }
 
+    public function approveCompleted(string $id): RedirectResponse
+    {
+        $task = Task::query()->findOrFail($id);
+
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+        abort_unless($task->status === TaskStatus::Completed, Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        $task->update([
+            'approved_as_completed' => true,
+        ]);
+
+        \Alert::success('Task approved as completed.')->flash();
+
+        return redirect()->back();
+    }
+
+    public function approveAllCompleted(): RedirectResponse
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $approvedCount = Task::query()
+            ->where('status', TaskStatus::Completed->value)
+            ->where('approved_as_completed', false)
+            ->update([
+                'approved_as_completed' => true,
+            ]);
+
+        \Alert::success("{$approvedCount} task(s) approved as completed.")->flash();
+
+        return redirect()->back();
+    }
+
     private function denyAllAccess(): void
     {
         foreach (['list', 'show', 'create', 'update', 'delete'] as $operation) {
@@ -450,6 +486,7 @@ class TaskCrudController extends CrudController
         $endDate = $this->parseFilterDate(request()->query('end_date'));
         $staffId = request()->query('staff_id');
         $status = request()->query('status');
+        $approvalStatus = request()->query('approval_status');
 
         if ($startDate !== null) {
             CRUD::addClause('whereDate', 'scheduled_for', '>=', $startDate->toDateString());
@@ -472,6 +509,18 @@ class TaskCrudController extends CrudController
 
         if (is_string($status) && array_key_exists($status, TaskStatus::options())) {
             CRUD::addClause('where', 'status', $status);
+        }
+
+        if (backpack_user()?->isAdmin() && is_string($approvalStatus) && $approvalStatus !== '') {
+            if ($approvalStatus === 'pending') {
+                CRUD::addClause('where', 'status', TaskStatus::Completed->value);
+                CRUD::addClause('where', 'approved_as_completed', false);
+            }
+
+            if ($approvalStatus === 'approved') {
+                CRUD::addClause('where', 'status', TaskStatus::Completed->value);
+                CRUD::addClause('where', 'approved_as_completed', true);
+            }
         }
     }
 

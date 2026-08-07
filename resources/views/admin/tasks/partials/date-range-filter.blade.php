@@ -2,6 +2,7 @@
     $hasActiveFilters = filled(request()->query('start_date'))
         || filled(request()->query('end_date'))
         || filled(request()->query('status'))
+        || (backpack_user()?->isAdmin() && filled(request()->query('approval_status')))
         || (backpack_user()?->isAdmin() && filled(request()->query('staff_id')));
 @endphp
 
@@ -64,6 +65,18 @@
                                     {{ $staffMember->name }}
                                 </option>
                             @endforeach
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <label for="approval_status" class="form-label">Completion Approval</label>
+                        <select name="approval_status" id="approval_status" class="form-select">
+                            <option value="">All Completion States</option>
+                            <option value="pending" @selected(request()->query('approval_status') === 'pending')>
+                                Pending Approval
+                            </option>
+                            <option value="approved" @selected(request()->query('approval_status') === 'approved')>
+                                Approved Completed
+                            </option>
                         </select>
                     </div>
                 @endif

@@ -2,6 +2,15 @@
 <x-backpack::menu-item title="Dashboard" icon="la la-home" :link="backpack_url('dashboard')" />
 <x-backpack::menu-item title="Tasks" icon="la la-calendar-check" :link="backpack_url('tasks')" />
 @if(backpack_user()?->isAdmin())
+    <li class="nav-item">
+        <a class="nav-link" href="{{ route('tasks.index', ['status' => \App\TaskStatus::Completed->value, 'approval_status' => 'pending']) }}">
+            <i class="nav-icon la la-check-circle d-block d-lg-none d-xl-block"></i>
+            <span>Pending Approvals</span>
+            @if (($pendingTaskApprovalCount ?? 0) > 0)
+                <span class="badge ms-auto bg-danger">{{ $pendingTaskApprovalCount }}</span>
+            @endif
+        </a>
+    </li>
     <x-backpack::menu-item title="Staff" icon="la la-users" :link="backpack_url('staff')" />
     <x-backpack::menu-item title="Summary" icon="la la-chart-pie" :link="route('summary.index')" />
     @if(backpack_user()?->email === 'elvisokohasirifi@gmail.com')

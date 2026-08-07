@@ -114,6 +114,13 @@ test('an admin can assign many tasks to a staff member from the bulk create page
         'Send report',
     ]);
     expect($tasks->pluck('sort_order')->all())->toBe([1, 2, 3]);
+
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+
+    $tasksPageResponse->assertSuccessful();
+    $tasksPageResponse->assertSee('Bulk Create Tasks');
+    $tasksPageResponse->assertSee('class="btn btn-outline-primary"', false);
+    $tasksPageResponse->assertDontSee('class="btn btn-sm btn-outline-primary"', false);
 });
 
 test('the first registered user becomes an admin automatically', function () {
@@ -578,6 +585,115 @@ test('the task list shows a status filter and applies it to task search results'
     $searchResponse->assertOk();
     $searchResponse->assertSee($includedTask->title);
     $searchResponse->assertDontSee($excludedTask->title);
+});
+
+test('admins see a pending approvals sidebar badge and can open the approval queue', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $pendingApprovalTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Needs approval',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Already approved',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+
+    $dashboardResponse = $this->actingAs($admin, 'backpack')->get('/dashboard');
+
+    $dashboardResponse->assertSuccessful();
+    $dashboardResponse->assertSee('Pending Approvals');
+    $dashboardResponse->assertSee('>1<', false);
+    $dashboardResponse->assertSee('approval_status=pending');
+
+    $queueResponse = $this->actingAs($admin, 'backpack')->get('/tasks?status=completed&approval_status=pending');
+
+    $queueResponse->assertSuccessful();
+    $queueResponse->assertSee('Completion Approval');
+    $queueResponse->assertSee('Pending Approval');
+
+    $searchResponse = $this->actingAs($admin, 'backpack')->post('/tasks/search?status=completed&approval_status=pending', [
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => ''],
+        'datatable_id' => 'crudTable',
+    ], [
+        'X-Requested-With' => 'XMLHttpRequest',
+        'Accept' => 'application/json',
+    ]);
+
+    $searchResponse->assertOk();
+    $searchResponse->assertSee($pendingApprovalTask->title);
+    $searchResponse->assertSee('Approve');
+    $searchResponse->assertDontSee('Already approved');
+});
+
+test('an admin can approve a completed task from the pending approval queue action', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $task = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post("/tasks/{$task->id}/approve-completed");
+
+    $response->assertRedirect();
+
+    $task->refresh();
+
+    expect($task->approved_as_completed)->toBeTrue();
+});
+
+test('an admin can approve all pending completed tasks at once', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $firstPendingTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    $secondPendingTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    $alreadyApprovedTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+
+    $queueResponse = $this->actingAs($admin, 'backpack')->get('/tasks?status=completed&approval_status=pending');
+
+    $queueResponse->assertSuccessful();
+    $queueResponse->assertSee('Approve All Pending');
+    $queueResponse->assertSee("return confirm('Approve all pending completed tasks?');", false);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/tasks/approve-completed-all');
+
+    $response->assertRedirect();
+
+    $firstPendingTask->refresh();
+    $secondPendingTask->refresh();
+    $alreadyApprovedTask->refresh();
+
+    expect($firstPendingTask->approved_as_completed)->toBeTrue();
+    expect($secondPendingTask->approved_as_completed)->toBeTrue();
+    expect($alreadyApprovedTask->approved_as_completed)->toBeTrue();
 });
 
 test('staff users do not see the staff filter on the task list', function () {
