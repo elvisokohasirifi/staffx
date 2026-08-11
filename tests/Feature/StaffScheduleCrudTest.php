@@ -11,11 +11,19 @@ use App\Notifications\TasksAssignedNotification;
 use App\TaskStatus;
 use Backpack\CRUD\app\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Mail\SentMessage as LaravelSentMessage;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Socialite\Facades\Socialite;
 use Laravel\Socialite\Two\User as SocialiteUser;
 use Spatie\Activitylog\Models\Activity;
+use Symfony\Component\Mailer\Envelope;
+use Symfony\Component\Mailer\SentMessage as SymfonySentMessage;
+use Symfony\Component\Mime\Address;
+use Symfony\Component\Mime\Email;
 
 uses(RefreshDatabase::class);
 
@@ -94,6 +102,42 @@ test('google login is rejected when there is no existing user for that email', f
         'google' => 'No account was found for this Google email. Please contact an admin.',
     ]);
     $this->assertGuest('backpack');
+});
+
+test('sent mails are also written to the application logs', function () {
+    $mailLogger = Mockery::spy();
+    Log::shouldReceive('channel')
+        ->once()
+        ->with('mail')
+        ->andReturn($mailLogger);
+
+    $email = (new Email)
+        ->from(new Address('hello@example.com', 'GCI Staff'))
+        ->to(new Address('staff@example.com', 'Staff User'))
+        ->subject('Task reminder')
+        ->text('Please complete your pending tasks.')
+        ->html('<p>Please complete your pending tasks.</p>');
+
+    Event::dispatch(new MessageSent(
+        new LaravelSentMessage(
+            new SymfonySentMessage(
+                $email,
+                new Envelope(
+                    new Address('hello@example.com'),
+                    [new Address('staff@example.com')]
+                )
+            )
+        )
+    ));
+
+    $mailLogger->shouldHaveReceived('info')
+        ->once()
+        ->with('Mail sent', Mockery::on(function (array $context): bool {
+            return $context['subject'] === 'Task reminder'
+                && $context['from'] === ['"GCI Staff" <hello@example.com>']
+                && $context['to'] === ['"Staff User" <staff@example.com>']
+                && $context['text'] === 'Please complete your pending tasks.';
+        }));
 });
 
 test('an admin can create a staff account and trigger a password reset email', function () {

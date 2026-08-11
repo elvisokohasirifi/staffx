@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Models\Task;
 use App\TaskStatus;
+use Illuminate\Mail\Events\MessageSent;
+use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -22,6 +25,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        Event::listen(MessageSent::class, function (MessageSent $event): void {
+            $message = $event->message;
+
+            Log::channel('mail')->info('Mail sent', [
+                'subject' => $message->getSubject(),
+                'from' => collect($message->getFrom() ?? [])->map(fn ($address) => $address->toString())->values()->all(),
+                'to' => collect($message->getTo() ?? [])->map(fn ($address) => $address->toString())->values()->all(),
+                'cc' => collect($message->getCc() ?? [])->map(fn ($address) => $address->toString())->values()->all(),
+                'bcc' => collect($message->getBcc() ?? [])->map(fn ($address) => $address->toString())->values()->all(),
+                'html' => $message->getHtmlBody(),
+                'text' => $message->getTextBody(),
+            ]);
+        });
+
         View::composer([
             'vendor.backpack.ui.inc.menu_items',
             'backpack.ui::inc.menu_items',
