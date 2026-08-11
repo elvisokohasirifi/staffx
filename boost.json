@@ -13,6 +13,7 @@
     "skills": [
         "infer-conventions",
         "laravel-best-practices",
+        "socialite-development",
         "pest-testing",
         "tailwindcss-development",
         "backpack-crud"

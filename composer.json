@@ -16,6 +16,7 @@
         "backpack/logmanager": "^5.1",
         "backpack/theme-tabler": "^2.0",
         "laravel/framework": "^13.8",
+        "laravel/socialite": "^5.29",
         "laravel/tinker": "^3.0"
     },
     "require-dev": {

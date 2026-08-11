@@ -13,6 +13,8 @@ use Backpack\CRUD\app\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
+use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\User as SocialiteUser;
 use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
@@ -29,6 +31,69 @@ test('the app root redirects guests to login when users already exist', function
     $response = $this->get('/');
 
     $response->assertRedirect('/login');
+});
+
+test('users can start google login from the backpack login page', function () {
+    config()->set('services.google.client_id', 'google-client-id');
+    config()->set('services.google.client_secret', 'google-client-secret');
+    config()->set('services.google.redirect', 'http://localhost/auth/google/callback');
+
+    Socialite::fake('google');
+
+    $response = $this->get('/auth/google/redirect');
+
+    $response->assertRedirect();
+});
+
+test('an existing user can sign in with google using a matching email address', function () {
+    config()->set('services.google.client_id', 'google-client-id');
+    config()->set('services.google.client_secret', 'google-client-secret');
+    config()->set('services.google.redirect', 'http://localhost/auth/google/callback');
+
+    $user = User::factory()->staff()->create([
+        'email' => 'staff@example.com',
+        'email_verified_at' => null,
+        'google_id' => null,
+        'google_avatar' => null,
+    ]);
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'google-user-123',
+        'name' => $user->name,
+        'email' => $user->email,
+        'avatar' => 'https://example.com/avatar.png',
+    ]));
+
+    $response = $this->get('/auth/google/callback');
+
+    $response->assertRedirect('/dashboard');
+    $this->assertAuthenticatedAs($user->fresh(), 'backpack');
+
+    $user->refresh();
+
+    expect($user->google_id)->toBe('google-user-123');
+    expect($user->google_avatar)->toBe('https://example.com/avatar.png');
+    expect($user->email_verified_at)->not->toBeNull();
+});
+
+test('google login is rejected when there is no existing user for that email', function () {
+    config()->set('services.google.client_id', 'google-client-id');
+    config()->set('services.google.client_secret', 'google-client-secret');
+    config()->set('services.google.redirect', 'http://localhost/auth/google/callback');
+
+    Socialite::fake('google', SocialiteUser::fake([
+        'id' => 'google-user-999',
+        'name' => 'Unknown User',
+        'email' => 'unknown@example.com',
+    ]));
+
+    $response = $this->get('/auth/google/callback');
+
+    $response->assertRedirect('/login');
+    $response->assertSessionHasErrors([
+        'google' => 'No account was found for this Google email. Please contact an admin.',
+    ]);
+    $this->assertGuest('backpack');
 });
 
 test('an admin can create a staff account and trigger a password reset email', function () {
