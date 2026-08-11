@@ -1,13 +1,17 @@
 <?php
 
+use App\Jobs\RunDatabaseBackupJob;
+use App\Jobs\SendPendingTaskRemindersJob;
 use App\Models\Task;
 use App\Models\TaskRemark;
 use App\Models\User;
+use App\Notifications\PendingTasksReminderNotification;
 use App\Notifications\TasksApprovedNotification;
 use App\Notifications\TasksAssignedNotification;
 use App\TaskStatus;
 use Backpack\CRUD\app\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
 use Spatie\Activitylog\Models\Activity;
 
@@ -141,6 +145,220 @@ test('an admin can assign many tasks to a staff member from the bulk create page
     $tasksPageResponse->assertSee('Bulk Create Tasks');
     $tasksPageResponse->assertSee('class="btn btn-outline-primary"', false);
     $tasksPageResponse->assertDontSee('class="btn btn-sm btn-outline-primary"', false);
+});
+
+test('an admin can open the bulk update page from tasks', function () {
+    $admin = User::factory()->admin()->create();
+
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+
+    $tasksPageResponse->assertSuccessful();
+    $tasksPageResponse->assertSee('Bulk Update Tasks');
+
+    $bulkUpdateResponse = $this->actingAs($admin, 'backpack')->get('/tasks/bulk-update');
+
+    $bulkUpdateResponse->assertSuccessful();
+    $bulkUpdateResponse->assertSee('Bulk Update Tasks');
+    $bulkUpdateResponse->assertSee('Matching Tasks');
+    $bulkUpdateResponse->assertSee('Updates To Apply');
+});
+
+test('an admin can open the bulk delete page and delete selected tasks', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $firstTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Delete me first',
+        'scheduled_for' => today()->toDateString(),
+    ]);
+    $secondTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Delete me second',
+        'scheduled_for' => today()->toDateString(),
+    ]);
+
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+
+    $tasksPageResponse->assertSuccessful();
+    $tasksPageResponse->assertSee('Bulk Delete Tasks');
+
+    $bulkDeleteResponse = $this->actingAs($admin, 'backpack')->get('/tasks/bulk-delete');
+
+    $bulkDeleteResponse->assertSuccessful();
+    $bulkDeleteResponse->assertSee('Bulk Delete Tasks');
+    $bulkDeleteResponse->assertSee($firstTask->title);
+    $bulkDeleteResponse->assertSee($secondTask->title);
+
+    $deleteResponse = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-delete', [
+        'task_ids' => [$firstTask->id, $secondTask->id],
+        'filter_scheduled_for' => today()->toDateString(),
+    ]);
+
+    $deleteResponse->assertRedirect('/tasks/bulk-delete?filter_scheduled_for='.today()->toDateString());
+
+    expect(Task::query()->whereKey($firstTask->id)->exists())->toBeFalse();
+    expect(Task::query()->whereKey($secondTask->id)->exists())->toBeFalse();
+});
+
+test('an admin can bulk reassign tasks and staff receives one grouped assignment notification', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+    $currentStaff = User::factory()->staff()->create();
+    $newStaff = User::factory()->staff()->create(['email' => 'new-staff@example.com']);
+
+    $firstTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $currentStaff->id,
+        'scheduled_for' => today()->toDateString(),
+        'title' => 'First reassigned task',
+    ]);
+    $secondTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $currentStaff->id,
+        'scheduled_for' => today()->toDateString(),
+        'title' => 'Second reassigned task',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-update', [
+        'task_ids' => [$firstTask->id, $secondTask->id],
+        'assignee_id' => $newStaff->id,
+        'scheduled_for' => '',
+        'status' => '',
+        'approval_action' => '',
+        'filter_scheduled_for' => today()->toDateString(),
+    ]);
+
+    $response->assertRedirect('/tasks/bulk-update?filter_scheduled_for='.today()->toDateString());
+
+    $firstTask->refresh();
+    $secondTask->refresh();
+
+    expect($firstTask->assignee_id)->toBe($newStaff->id);
+    expect($secondTask->assignee_id)->toBe($newStaff->id);
+
+    Notification::assertSentTo($newStaff, TasksAssignedNotification::class, function (TasksAssignedNotification $notification) use ($firstTask, $secondTask): bool {
+        return count($notification->tasks) === 2
+            && collect($notification->tasks)->pluck('title')->all() === [
+                $firstTask->title,
+                $secondTask->title,
+            ];
+    });
+});
+
+test('an admin can bulk approve completed tasks and staff receives one grouped approval notification', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $firstTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+        'title' => 'First bulk approved task',
+    ]);
+    $secondTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+        'title' => 'Second bulk approved task',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-update', [
+        'task_ids' => [$firstTask->id, $secondTask->id],
+        'assignee_id' => '',
+        'scheduled_for' => '',
+        'status' => '',
+        'approval_action' => 'approve',
+    ]);
+
+    $response->assertRedirect('/tasks/bulk-update');
+
+    $firstTask->refresh();
+    $secondTask->refresh();
+
+    expect($firstTask->approved_as_completed)->toBeTrue();
+    expect($secondTask->approved_as_completed)->toBeTrue();
+
+    Notification::assertSentTo($staff, TasksApprovedNotification::class, function (TasksApprovedNotification $notification) use ($firstTask, $secondTask): bool {
+        return count($notification->tasks) === 2
+            && collect($notification->tasks)->pluck('title')->all() === [
+                $firstTask->title,
+                $secondTask->title,
+            ];
+    });
+});
+
+test('the database backup job runs the backup plugin for database backups only', function () {
+    Artisan::shouldReceive('call')
+        ->once()
+        ->with('backup:run', [
+            '--only-db' => true,
+            '--disable-notifications' => true,
+        ])
+        ->andReturn(0);
+
+    app(RunDatabaseBackupJob::class)->handle();
+});
+
+test('the pending task reminders job emails each staff member their incomplete tasks for today', function () {
+    Notification::fake();
+
+    $staff = User::factory()->staff()->create();
+    $otherStaff = User::factory()->staff()->create();
+
+    Task::factory()->create([
+        'assignee_id' => $staff->id,
+        'title' => 'Pending reminder task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Pending->value,
+    ]);
+    Task::factory()->create([
+        'assignee_id' => $staff->id,
+        'title' => 'Awaiting approval reminder task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    Task::factory()->create([
+        'assignee_id' => $staff->id,
+        'title' => 'Approved completed task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+    Task::factory()->create([
+        'assignee_id' => $otherStaff->id,
+        'title' => 'Other staff blocked task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::CouldNotBeAchieved->value,
+    ]);
+    Task::factory()->create([
+        'assignee_id' => $staff->id,
+        'title' => 'Tomorrow task',
+        'scheduled_for' => today()->addDay()->toDateString(),
+        'status' => TaskStatus::Pending->value,
+    ]);
+
+    app(SendPendingTaskRemindersJob::class)->handle();
+
+    Notification::assertSentTo($staff, PendingTasksReminderNotification::class, function (PendingTasksReminderNotification $notification): bool {
+        return count($notification->tasks) === 2
+            && collect($notification->tasks)->pluck('title')->all() === [
+                'Pending reminder task',
+                'Awaiting approval reminder task',
+            ];
+    });
+
+    Notification::assertSentTo($otherStaff, PendingTasksReminderNotification::class, function (PendingTasksReminderNotification $notification): bool {
+        return count($notification->tasks) === 1
+            && $notification->tasks[0]['title'] === 'Other staff blocked task';
+    });
 });
 
 test('the first registered user becomes an admin automatically', function () {
