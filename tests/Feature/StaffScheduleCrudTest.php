@@ -483,6 +483,22 @@ test('the my tasks list shows filters and applies them to personal task search r
     $searchResponse->assertDontSee('Other admin personal completed task');
 });
 
+test('the my task show page includes the delete action script', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-delete-admin@example.com',
+    ]);
+
+    $task = Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Delete-ready personal task',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get("/my-tasks/{$task->id}/show");
+
+    $response->assertSuccessful();
+    $response->assertSee('onclick="deleteEntry(this)"', false);
+    $response->assertSee('function deleteEntry(button)', false);
+});
+
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
     Notification::fake();
 
@@ -1547,14 +1563,14 @@ test('a staff members dashboard shows their open tasks and completion stats for 
     $response->assertSee('2');
     $response->assertSee('1');
     $response->assertSee('25.0%');
-    $response->assertSeeText('My Pending & In Progress Tasks Due Today');
+    $response->assertSeeText('My Pending & In Progress Tasks');
     $response->assertSee($pendingTask->title);
     $response->assertSee('In progress task for staff');
     $response->assertSee('In Progress');
+    $response->assertSee('Tomorrow pending task for staff');
     $response->assertDontSee('Completed task for staff');
     $response->assertDontSee('Blocked task for staff');
     $response->assertDontSee('Another staff pending task');
-    $response->assertDontSee('Tomorrow pending task for staff');
 });
 
 test('admins can view the summary page with staff totals and status distribution', function () {

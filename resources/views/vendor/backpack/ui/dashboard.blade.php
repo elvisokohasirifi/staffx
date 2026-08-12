@@ -28,7 +28,7 @@
     <div class="mb-4">
         <h2 class="mb-1">{{ backpack_user()?->isAdmin() ? 'Admin Dashboard' : 'My Dashboard' }}</h2>
         <p class="text-muted mb-0">
-            {{ backpack_user()?->isAdmin() ? 'Task summary for '.today()->toFormattedDateString().'.' : 'Pending and in-progress tasks due today.' }}
+            {{ backpack_user()?->isAdmin() ? 'Task summary for '.today()->toFormattedDateString().'.' : 'Today cards with all pending and in-progress tasks listed below.' }}
         </p>
     </div>
 
@@ -172,11 +172,11 @@
 
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0">My Pending & In Progress Tasks Due Today</h4>
+                <h4 class="mb-0">My Pending & In Progress Tasks</h4>
             </div>
             <div class="card-body p-0">
                 @if($openTasks->isEmpty())
-                    <div class="p-4 text-muted">You do not have any pending or in-progress tasks due today.</div>
+                    <div class="p-4 text-muted">You do not have any pending or in-progress tasks.</div>
                 @else
                     <div class="table-responsive mobile-table-scroll">
                         <table class="table mb-0" style="min-width: 720px;">

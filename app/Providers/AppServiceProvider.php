@@ -84,7 +84,6 @@ class AppServiceProvider extends ServiceProvider
                     $staffOpenTasks = Task::query()
                         ->staffTasks()
                         ->where('assignee_id', backpack_user()->getKey())
-                        ->whereDate('scheduled_for', today())
                         ->whereIn('status', [
                             TaskStatus::Pending->value,
                             TaskStatus::InProgress->value,
