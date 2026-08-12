@@ -63,6 +63,7 @@
                                             <th style="width: 48px;"><input type="checkbox" id="select_all_tasks"></th>
                                             <th>Task</th>
                                             <th>Date</th>
+                                            <th>Time</th>
                                             <th>Status</th>
                                             <th>Approved</th>
                                         </tr>
@@ -75,6 +76,7 @@
                                                 </td>
                                                 <td><div class="fw-semibold">{{ $task->title }}</div></td>
                                                 <td>{{ $task->scheduled_for?->format('M j, Y') }}</td>
+                                                <td>{{ $task->scheduledTimeLabel() }}</td>
                                                 <td>{{ $taskStatusOptions[$task->status->value] ?? $task->status->value }}</td>
                                                 <td>{{ $task->approved_as_completed ? 'Yes' : 'No' }}</td>
                                             </tr>
@@ -107,6 +109,14 @@
                             <label for="scheduled_for" class="form-label">Scheduled Date</label>
                             <input id="scheduled_for" type="date" name="scheduled_for" value="{{ old('scheduled_for') }}" class="form-control @error('scheduled_for') is-invalid @enderror">
                             @error('scheduled_for')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="scheduled_time" class="form-label">Scheduled Time</label>
+                            <input id="scheduled_time" type="time" name="scheduled_time" value="{{ old('scheduled_time') }}" step="60" class="form-control @error('scheduled_time') is-invalid @enderror">
+                            @error('scheduled_time')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                         </div>

@@ -64,7 +64,7 @@ class TaskCrudController extends CrudController
         CRUD::with(['admin', 'assignee']);
         CRUD::addClause('where', 'is_admin_personal', false);
 
-        $this->crud->query->withCount('remarks')->orderBy('scheduled_for')->orderBy('sort_order');
+        $this->crud->query->withCount('remarks')->orderBy('scheduled_for')->orderBy('scheduled_time')->orderBy('sort_order');
 
         $this->denyAllAccess();
 
@@ -116,6 +116,12 @@ class TaskCrudController extends CrudController
             ],
         ]);
         CRUD::column('scheduled_for')->label('Date')->type('date');
+        CRUD::addColumn([
+            'name' => 'scheduled_time_label',
+            'label' => 'Time',
+            'type' => 'text',
+            'value' => fn (Task $task): string => $task->scheduledTimeLabel(),
+        ]);
         CRUD::addColumn([
             'name' => 'status_label',
             'label' => 'Status',
@@ -183,6 +189,12 @@ class TaskCrudController extends CrudController
         $this->hideActivityButtonsWhenUnauthorized();
 
         CRUD::column('scheduled_for')->label('Date')->type('date');
+        CRUD::addColumn([
+            'name' => 'scheduled_time_label',
+            'label' => 'Time',
+            'type' => 'text',
+            'value' => fn (Task $task): string => $task->scheduledTimeLabel(),
+        ]);
         CRUD::addColumn([
             'name' => 'title',
             'label' => 'Title',
@@ -281,6 +293,7 @@ class TaskCrudController extends CrudController
 
         $validated = $request->validate([
             'scheduled_for' => ['required', 'date'],
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
             'task_lines' => ['required', 'string'],
             'assignee_id' => [
                 'required',
@@ -292,6 +305,7 @@ class TaskCrudController extends CrudController
         ], [
             'assignee_id' => 'staff member',
             'scheduled_for' => 'scheduled date',
+            'scheduled_time' => 'scheduled time',
             'task_lines' => 'task list',
         ]);
 
@@ -319,6 +333,7 @@ class TaskCrudController extends CrudController
                 $createdTasks->push(Task::query()->create([
                     'title' => $title,
                     'scheduled_for' => $validated['scheduled_for'],
+                    'scheduled_time' => $validated['scheduled_time'] ?? '23:59',
                     'status' => TaskStatus::Pending,
                     'sort_order' => $startingSortOrder + $index + 1,
                     'admin_id' => backpack_user()->getKey(),
@@ -344,6 +359,7 @@ class TaskCrudController extends CrudController
         $tasks = $this->bulkTaskQuery($filters)
             ->with(['assignee'])
             ->orderBy('scheduled_for')
+            ->orderBy('scheduled_time')
             ->orderBy('sort_order')
             ->get();
 
@@ -363,6 +379,7 @@ class TaskCrudController extends CrudController
         $tasks = $this->bulkTaskQuery($filters)
             ->with(['assignee'])
             ->orderBy('scheduled_for')
+            ->orderBy('scheduled_time')
             ->orderBy('sort_order')
             ->get();
 
@@ -421,6 +438,7 @@ class TaskCrudController extends CrudController
                 Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
             ],
             'scheduled_for' => ['nullable', 'date'],
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
             'status' => ['nullable', Rule::enum(TaskStatus::class)],
             'approval_action' => ['nullable', Rule::in(['approve', 'unapprove'])],
             'filter_assignee_id' => ['nullable', 'uuid'],
@@ -431,11 +449,13 @@ class TaskCrudController extends CrudController
             'task_ids' => 'tasks',
             'assignee_id' => 'staff member',
             'scheduled_for' => 'scheduled date',
+            'scheduled_time' => 'scheduled time',
             'approval_action' => 'approval status',
         ]);
 
         $hasChanges = filled($validated['assignee_id'] ?? null)
             || filled($validated['scheduled_for'] ?? null)
+            || filled($validated['scheduled_time'] ?? null)
             || filled($validated['status'] ?? null)
             || filled($validated['approval_action'] ?? null);
 
@@ -466,6 +486,10 @@ class TaskCrudController extends CrudController
 
                 if (filled($validated['scheduled_for'] ?? null)) {
                     $updateData['scheduled_for'] = $validated['scheduled_for'];
+                }
+
+                if (filled($validated['scheduled_time'] ?? null)) {
+                    $updateData['scheduled_time'] = $validated['scheduled_time'];
                 }
 
                 if (filled($validated['status'] ?? null)) {
@@ -781,6 +805,7 @@ class TaskCrudController extends CrudController
         CRUD::field('title')->label('Title')->type('text');
         CRUD::field('description')->label('Description')->type('textarea');
         CRUD::field('scheduled_for')->label('Scheduled Date')->type('date')->default(today()->toDateString());
+        CRUD::field('scheduled_time')->label('Scheduled Time')->type('time')->default('23:59')->attributes(['step' => 60]);
         CRUD::field('assignee_id')->label('Staff Member')->type('select')->entity('assignee')->model(User::class)->attribute('name')->options(
             fn ($query) => $query->staff()->orderBy('name')->get()
         );

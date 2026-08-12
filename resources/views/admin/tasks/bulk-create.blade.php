@@ -43,6 +43,21 @@
                             @enderror
                         </div>
 
+                        <div class="mb-3">
+                            <label for="scheduled_time" class="form-label">Scheduled Time</label>
+                            <input
+                                id="scheduled_time"
+                                type="time"
+                                name="scheduled_time"
+                                value="{{ old('scheduled_time', '23:59') }}"
+                                step="60"
+                                class="form-control @error('scheduled_time') is-invalid @enderror"
+                            >
+                            @error('scheduled_time')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                         <div class="mb-4">
                             <label for="task_lines" class="form-label">Tasks</label>
                             <textarea

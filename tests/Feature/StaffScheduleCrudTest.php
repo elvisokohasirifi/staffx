@@ -290,6 +290,7 @@ test('an admin can create a single task from the default create form', function 
     expect($task?->title)->toBe('Open shop');
     expect($task?->admin_id)->toBe($admin->id);
     expect($task?->sort_order)->toBe(1);
+    expect($task?->scheduled_time)->toBe('23:59:00');
 
     Notification::assertSentTo($staff, TasksAssignedNotification::class, function (TasksAssignedNotification $notification): bool {
         return count($notification->tasks) === 1
@@ -305,6 +306,28 @@ test('an admin can create a single task from the default create form', function 
         ->first();
 
     expect($activity)->not->toBeNull();
+});
+
+test('scheduled time defaults to 11 59 pm when a task is created without one', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $response = $this->actingAs($admin, 'backpack')->post('/tasks', [
+        'title' => 'Late follow-up',
+        'description' => 'Default time test.',
+        'assignee_id' => $staff->id,
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Pending->value,
+        'sort_order' => 1,
+        'outcome_notes' => '',
+    ]);
+
+    $response->assertRedirect();
+
+    $task = Task::query()->where('title', 'Late follow-up')->first();
+
+    expect($task)->not->toBeNull();
+    expect($task?->scheduled_time)->toBe('23:59:00');
 });
 
 test('admin personal tasks are only visible to their owner and are excluded from shared summaries', function () {

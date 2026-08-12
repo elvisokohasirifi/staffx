@@ -13,11 +13,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 
 #[Fillable([
     'title',
     'description',
     'scheduled_for',
+    'scheduled_time',
     'status',
     'approved_as_completed',
     'is_admin_personal',
@@ -56,6 +58,12 @@ class Task extends Model
     protected static function booted(): void
     {
         static::saving(function (Task $task): void {
+            if (blank($task->scheduled_time)) {
+                $task->scheduled_time = '23:59:00';
+            } else {
+                $task->scheduled_time = self::normalizeScheduledTime((string) $task->scheduled_time);
+            }
+
             if (is_null($task->sort_order)) {
                 $task->sort_order = 1;
             }
@@ -122,6 +130,26 @@ class Task extends Model
         return $this->status;
     }
 
+    public function scheduledTimeLabel(): string
+    {
+        try {
+            return Carbon::createFromFormat('H:i:s', (string) $this->scheduled_time)->format('g:i A');
+        } catch (\Throwable) {
+            return (string) $this->scheduled_time;
+        }
+    }
+
+    public function scheduledAtLabel(): string
+    {
+        $dateLabel = $this->scheduled_for?->toFormattedDateString() ?? '';
+
+        if ($dateLabel === '') {
+            return $this->scheduledTimeLabel();
+        }
+
+        return trim($dateLabel.' at '.$this->scheduledTimeLabel());
+    }
+
     public function admin(): BelongsTo
     {
         return $this->belongsTo(User::class, 'admin_id');
@@ -135,5 +163,14 @@ class Task extends Model
     public function remarks(): HasMany
     {
         return $this->hasMany(TaskRemark::class);
+    }
+
+    private static function normalizeScheduledTime(string $value): string
+    {
+        try {
+            return Carbon::createFromFormat('H:i:s', $value)->format('H:i:s');
+        } catch (\Throwable) {
+            return Carbon::createFromFormat('H:i', $value)->format('H:i:s');
+        }
     }
 }

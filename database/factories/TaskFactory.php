@@ -23,6 +23,7 @@ class TaskFactory extends Factory
             'title' => fake()->sentence(4),
             'description' => fake()->paragraph(),
             'scheduled_for' => fake()->dateTimeBetween('-1 week', '+2 weeks')->format('Y-m-d'),
+            'scheduled_time' => fake()->randomElement(['09:00:00', '12:30:00', '17:45:00', '23:59:00']),
             'status' => fake()->randomElement([
                 TaskStatus::Pending->value,
                 TaskStatus::InProgress->value,

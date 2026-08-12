@@ -57,7 +57,7 @@ class AdminPersonalTaskCrudController extends CrudController
             CRUD::allowAccess($operation);
         }
         CRUD::with(['admin']);
-        $this->crud->query->orderBy('scheduled_for')->orderBy('sort_order')->orderBy('title');
+        $this->crud->query->orderBy('scheduled_for')->orderBy('scheduled_time')->orderBy('sort_order')->orderBy('title');
     }
 
     protected function setupListOperation(): void
@@ -80,6 +80,12 @@ class AdminPersonalTaskCrudController extends CrudController
             ],
         ]);
         CRUD::column('scheduled_for')->label('Date')->type('date');
+        CRUD::addColumn([
+            'name' => 'scheduled_time_label',
+            'label' => 'Time',
+            'type' => 'text',
+            'value' => fn (Task $task): string => $task->scheduledTimeLabel(),
+        ]);
         CRUD::addColumn([
             'name' => 'status_label',
             'label' => 'Status',
@@ -104,6 +110,12 @@ class AdminPersonalTaskCrudController extends CrudController
     protected function setupShowOperation(): void
     {
         CRUD::column('scheduled_for')->label('Date')->type('date');
+        CRUD::addColumn([
+            'name' => 'scheduled_time_label',
+            'label' => 'Time',
+            'type' => 'text',
+            'value' => fn (Task $task): string => $task->scheduledTimeLabel(),
+        ]);
         CRUD::addColumn([
             'name' => 'title',
             'label' => 'Title',
@@ -162,11 +174,13 @@ class AdminPersonalTaskCrudController extends CrudController
 
         $validated = $request->validate([
             'scheduled_for' => ['required', 'date'],
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
             'task_lines' => ['required', 'string'],
         ], [
             'task_lines.required' => 'Please enter at least one task title.',
         ], [
             'scheduled_for' => 'scheduled date',
+            'scheduled_time' => 'scheduled time',
             'task_lines' => 'task list',
         ]);
 
@@ -193,6 +207,7 @@ class AdminPersonalTaskCrudController extends CrudController
                 Task::query()->create([
                     'title' => $title,
                     'scheduled_for' => $validated['scheduled_for'],
+                    'scheduled_time' => $validated['scheduled_time'] ?? '23:59',
                     'status' => TaskStatus::Pending,
                     'sort_order' => $startingSortOrder + $index + 1,
                     'admin_id' => backpack_user()->getKey(),
@@ -215,6 +230,7 @@ class AdminPersonalTaskCrudController extends CrudController
         $filters = $this->bulkTaskFilters($request);
         $tasks = $this->bulkTaskQuery($filters)
             ->orderBy('scheduled_for')
+            ->orderBy('scheduled_time')
             ->orderBy('sort_order')
             ->get();
 
@@ -232,6 +248,7 @@ class AdminPersonalTaskCrudController extends CrudController
         $filters = $this->bulkTaskFilters($request);
         $tasks = $this->bulkTaskQuery($filters)
             ->orderBy('scheduled_for')
+            ->orderBy('scheduled_time')
             ->orderBy('sort_order')
             ->get();
 
@@ -284,6 +301,7 @@ class AdminPersonalTaskCrudController extends CrudController
             'task_ids' => ['required', 'array', 'min:1'],
             'task_ids.*' => ['required', 'uuid'],
             'scheduled_for' => ['nullable', 'date'],
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
             'status' => ['nullable', Rule::enum(TaskStatus::class)],
             'approval_action' => ['nullable', Rule::in(['approve', 'unapprove'])],
             'filter_scheduled_for' => ['nullable', 'date'],
@@ -292,10 +310,12 @@ class AdminPersonalTaskCrudController extends CrudController
         ], [], [
             'task_ids' => 'tasks',
             'scheduled_for' => 'scheduled date',
+            'scheduled_time' => 'scheduled time',
             'approval_action' => 'approval status',
         ]);
 
         $hasChanges = filled($validated['scheduled_for'] ?? null)
+            || filled($validated['scheduled_time'] ?? null)
             || filled($validated['status'] ?? null)
             || filled($validated['approval_action'] ?? null);
 
@@ -318,6 +338,10 @@ class AdminPersonalTaskCrudController extends CrudController
 
                 if (filled($validated['scheduled_for'] ?? null)) {
                     $updateData['scheduled_for'] = $validated['scheduled_for'];
+                }
+
+                if (filled($validated['scheduled_time'] ?? null)) {
+                    $updateData['scheduled_time'] = $validated['scheduled_time'];
                 }
 
                 if (filled($validated['status'] ?? null)) {
@@ -374,6 +398,7 @@ class AdminPersonalTaskCrudController extends CrudController
         CRUD::field('title')->label('Title')->type('text');
         CRUD::field('description')->label('Description')->type('textarea');
         CRUD::field('scheduled_for')->label('Scheduled Date')->type('date')->default(today()->toDateString());
+        CRUD::field('scheduled_time')->label('Scheduled Time')->type('time')->default('23:59')->attributes(['step' => 60]);
         CRUD::field('status')->label('Status')->type('select_from_array')->options(TaskStatus::options())->default(TaskStatus::Pending->value);
         CRUD::field('sort_order')->label('Sort Order')->type('number')->default(1)->attributes(['min' => 0]);
         CRUD::field('outcome_notes')->label('Outcome Notes')->type('textarea');

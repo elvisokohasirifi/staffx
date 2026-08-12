@@ -63,7 +63,7 @@ class SendTaskNotificationsAction
         return $tasks
             ->map(fn (Task $task): array => [
                 'title' => $task->title,
-                'scheduled_for' => $task->scheduled_for?->toFormattedDateString() ?? '',
+                'scheduled_for' => $task->scheduledAtLabel(),
             ])
             ->all();
     }

@@ -52,6 +52,7 @@ class TaskRequest extends FormRequest
                 'title' => ['required', 'string', 'max:255'],
                 'description' => ['nullable', 'string'],
                 'scheduled_for' => ['required', 'date'],
+                'scheduled_time' => ['nullable', 'date_format:H:i'],
                 'status' => ['required', Rule::enum(TaskStatus::class)],
                 'sort_order' => ['nullable', 'integer', 'min:0'],
                 'outcome_notes' => ['nullable', 'string', 'max:5000'],
@@ -67,6 +68,7 @@ class TaskRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'scheduled_for' => ['required', 'date'],
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
             'status' => ['required', Rule::enum(TaskStatus::class)],
             'approved_as_completed' => ['sometimes', 'boolean'],
             'sort_order' => ['nullable', 'integer', 'min:0'],
@@ -87,6 +89,7 @@ class TaskRequest extends FormRequest
         return [
             'assignee_id' => 'staff member',
             'scheduled_for' => 'scheduled date',
+            'scheduled_time' => 'scheduled time',
         ];
     }
 

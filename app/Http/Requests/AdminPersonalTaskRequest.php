@@ -24,6 +24,7 @@ class AdminPersonalTaskRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'scheduled_for' => ['required', 'date'],
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
             'status' => ['required', Rule::enum(TaskStatus::class)],
             'sort_order' => ['nullable', 'integer', 'min:0'],
             'outcome_notes' => ['nullable', 'string', 'max:5000'],

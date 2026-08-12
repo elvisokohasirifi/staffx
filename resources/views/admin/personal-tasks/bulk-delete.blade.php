@@ -61,6 +61,7 @@
                                     <th style="width: 48px;"><input type="checkbox" id="select_all_tasks"></th>
                                     <th>Task</th>
                                     <th>Date</th>
+                                    <th>Time</th>
                                     <th>Status</th>
                                     <th>Approved</th>
                                 </tr>
@@ -73,6 +74,7 @@
                                         </td>
                                         <td><div class="fw-semibold">{{ $task->title }}</div></td>
                                         <td>{{ $task->scheduled_for?->format('M j, Y') }}</td>
+                                        <td>{{ $task->scheduledTimeLabel() }}</td>
                                         <td>{{ $taskStatusOptions[$task->status->value] ?? $task->status->value }}</td>
                                         <td>{{ $task->approved_as_completed ? 'Yes' : 'No' }}</td>
                                     </tr>

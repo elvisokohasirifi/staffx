@@ -84,6 +84,7 @@
                                     <th>Task</th>
                                     <th>Staff</th>
                                     <th>Date</th>
+                                    <th>Time</th>
                                     <th>Status</th>
                                     <th>Approved</th>
                                 </tr>
@@ -105,6 +106,7 @@
                                         </td>
                                         <td>{{ $task->assignee?->name }}</td>
                                         <td>{{ $task->scheduled_for?->format('M j, Y') }}</td>
+                                        <td>{{ $task->scheduledTimeLabel() }}</td>
                                         <td>{{ $taskStatusOptions[$task->status->value] ?? $task->status->value }}</td>
                                         <td>{{ $task->approved_as_completed ? 'Yes' : 'No' }}</td>
                                     </tr>

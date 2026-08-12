@@ -89,6 +89,7 @@
                             <thead>
                                 <tr>
                                     <th>Staff</th>
+                                    <th>Time</th>
                                     <th>Task</th>
                                     <th>Status</th>
                                     <th>Remarks</th>
@@ -99,6 +100,7 @@
                                 @foreach($todayTasks as $task)
                                     <tr>
                                         <td>{{ $task->assignee?->name ?? 'Unassigned' }}</td>
+                                        <td>{{ $task->scheduledTimeLabel() }}</td>
                                         <td>
                                             <div class="fw-semibold">{{ $task->title }}</div>
                                             @if($task->description)
@@ -183,6 +185,7 @@
                             <thead>
                                 <tr>
                                     <th>Scheduled</th>
+                                    <th>Time</th>
                                     <th>Task</th>
                                     <th>Status</th>
                                     <th>Remarks</th>
@@ -193,6 +196,7 @@
                                 @foreach($openTasks as $task)
                                     <tr>
                                         <td>{{ $task->scheduled_for?->format('M j, Y') }}</td>
+                                        <td>{{ $task->scheduledTimeLabel() }}</td>
                                         <td>
                                             <div class="fw-semibold">{{ $task->title }}</div>
                                             @if($task->description)
