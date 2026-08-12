@@ -141,6 +141,7 @@
                     <div class="card-body">
                         <div class="text-uppercase small fw-semibold">Approved Completed</div>
                         <div class="display-6 fw-bold">{{ $stats['completed'] }}</div>
+                        <div class="small opacity-75">{{ $stats['completed'] }} of {{ $stats['completed_status'] }} completed approved</div>
                     </div>
                 </div>
             </div>
