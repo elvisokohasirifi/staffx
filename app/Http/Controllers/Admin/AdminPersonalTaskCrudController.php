@@ -13,6 +13,12 @@ use Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\View\View;
 
 /**
  * @property-read CrudPanel $crud
@@ -54,8 +60,11 @@ class AdminPersonalTaskCrudController extends CrudController
 
     protected function setupListOperation(): void
     {
+        $this->applyTaskFilters();
+        CRUD::setListView('admin.personal-tasks.list');
         CRUD::setDefaultPageLength(20);
         CRUD::setPageLengthMenu([20, 50, 100]);
+        CRUD::addButtonFromView('top', 'bulk_create_my_tasks', 'vendor.backpack.crud.buttons.bulk_create_my_tasks', 'end');
 
         CRUD::addColumn([
             'name' => 'title',
@@ -136,6 +145,65 @@ class AdminPersonalTaskCrudController extends CrudController
         return $this->crud->performSaveAction($item->getKey());
     }
 
+    public function bulkCreate(): View
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        return view('admin.personal-tasks.bulk-create');
+    }
+
+    public function bulkStore(Request $request): RedirectResponse
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $validated = $request->validate([
+            'scheduled_for' => ['required', 'date'],
+            'task_lines' => ['required', 'string'],
+        ], [
+            'task_lines.required' => 'Please enter at least one task title.',
+        ], [
+            'scheduled_for' => 'scheduled date',
+            'task_lines' => 'task list',
+        ]);
+
+        $taskTitles = collect(preg_split('/\r\n|\r|\n/', (string) $validated['task_lines']))
+            ->map(fn (string $title): string => trim($title))
+            ->filter()
+            ->values();
+
+        if ($taskTitles->isEmpty()) {
+            return back()
+                ->withErrors(['task_lines' => 'Please enter at least one task title.'])
+                ->withInput();
+        }
+
+        DB::transaction(function () use ($taskTitles, $validated): void {
+            $startingSortOrder = (int) Task::query()
+                ->adminPersonalTasks()
+                ->where('admin_id', backpack_user()->getKey())
+                ->where('assignee_id', backpack_user()->getKey())
+                ->whereDate('scheduled_for', $validated['scheduled_for'])
+                ->max('sort_order');
+
+            $taskTitles->each(function (string $title, int $index) use ($startingSortOrder, $validated): void {
+                Task::query()->create([
+                    'title' => $title,
+                    'scheduled_for' => $validated['scheduled_for'],
+                    'status' => TaskStatus::Pending,
+                    'sort_order' => $startingSortOrder + $index + 1,
+                    'admin_id' => backpack_user()->getKey(),
+                    'assignee_id' => backpack_user()->getKey(),
+                    'is_admin_personal' => true,
+                    'approved_as_completed' => false,
+                ]);
+            });
+        });
+
+        \Alert::success($taskTitles->count().' personal task(s) were created successfully.')->flash();
+
+        return redirect()->to(backpack_url('my-tasks'));
+    }
+
     public function update()
     {
         $task = $this->findPersonalTaskOrFail((string) request()->route('id'));
@@ -172,6 +240,38 @@ class AdminPersonalTaskCrudController extends CrudController
         CRUD::field('status')->label('Status')->type('select_from_array')->options(TaskStatus::options())->default(TaskStatus::Pending->value);
         CRUD::field('sort_order')->label('Sort Order')->type('number')->default(1)->attributes(['min' => 0]);
         CRUD::field('outcome_notes')->label('Outcome Notes')->type('textarea');
+    }
+
+    private function applyTaskFilters(): void
+    {
+        $startDate = $this->parseFilterDate(request()->query('start_date'));
+        $endDate = $this->parseFilterDate(request()->query('end_date'));
+        $status = request()->query('status');
+
+        if ($startDate !== null) {
+            CRUD::addClause('whereDate', 'scheduled_for', '>=', $startDate->toDateString());
+        }
+
+        if ($endDate !== null) {
+            CRUD::addClause('whereDate', 'scheduled_for', '<=', $endDate->toDateString());
+        }
+
+        if (is_string($status) && array_key_exists($status, TaskStatus::options())) {
+            CRUD::addClause('where', 'status', $status);
+        }
+    }
+
+    private function parseFilterDate(mixed $value): ?Carbon
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return null;
+        }
+
+        try {
+            return Carbon::createFromFormat('Y-m-d', $value)->startOfDay();
+        } catch (\Throwable) {
+            return null;
+        }
     }
 
     private function findPersonalTaskOrFail(string $id): Task

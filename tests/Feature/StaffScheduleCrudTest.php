@@ -301,6 +301,92 @@ test('admin personal tasks are only visible to their owner and are excluded from
     });
 });
 
+test('an admin can bulk create private personal tasks from the my tasks section', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-bulk-admin@example.com',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/my-tasks/bulk-create', [
+        'scheduled_for' => today()->toDateString(),
+        'task_lines' => "Review branch reports\nPrepare tomorrow outline\nFollow up on approvals",
+    ]);
+
+    $response->assertRedirect('/my-tasks');
+
+    $tasks = Task::query()
+        ->adminPersonalTasks()
+        ->where('admin_id', $admin->id)
+        ->where('assignee_id', $admin->id)
+        ->whereDate('scheduled_for', today())
+        ->orderBy('sort_order')
+        ->get();
+
+    expect($tasks)->toHaveCount(3);
+    expect($tasks->pluck('title')->all())->toBe([
+        'Review branch reports',
+        'Prepare tomorrow outline',
+        'Follow up on approvals',
+    ]);
+    expect($tasks->pluck('sort_order')->all())->toBe([1, 2, 3]);
+    expect($tasks->every(fn (Task $task): bool => $task->is_admin_personal))->toBeTrue();
+
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/my-tasks');
+
+    $tasksPageResponse->assertSuccessful();
+    $tasksPageResponse->assertSee('Bulk Create My Tasks');
+});
+
+test('the my tasks list shows filters and applies them to personal task search results', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'filtered-personal-admin@example.com',
+    ]);
+    $otherAdmin = User::factory()->admin()->create([
+        'email' => 'other-filtered-personal-admin@example.com',
+    ]);
+
+    $includedTask = Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Included personal completed task',
+        'scheduled_for' => '2026-08-12',
+        'status' => TaskStatus::Completed->value,
+    ]);
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Excluded personal pending task',
+        'scheduled_for' => '2026-08-13',
+        'status' => TaskStatus::Pending->value,
+    ]);
+    Task::factory()->adminPersonal($otherAdmin)->create([
+        'title' => 'Other admin personal completed task',
+        'scheduled_for' => '2026-08-12',
+        'status' => TaskStatus::Completed->value,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get('/my-tasks?start_date=2026-08-12&end_date=2026-08-12&status=completed');
+
+    $response->assertSuccessful();
+    $response->assertSee('Filters');
+    $response->assertSee('Start Date');
+    $response->assertSee('End Date');
+    $response->assertSee('Status');
+    $response->assertSee('Apply Filter');
+    $response->assertSee('value="2026-08-12"', false);
+    $response->assertSee('value="completed" selected', false);
+
+    $searchResponse = $this->actingAs($admin, 'backpack')->post('/my-tasks/search?start_date=2026-08-12&end_date=2026-08-12&status=completed', [
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => ''],
+        'datatable_id' => 'crudTable',
+    ], [
+        'X-Requested-With' => 'XMLHttpRequest',
+        'Accept' => 'application/json',
+    ]);
+
+    $searchResponse->assertOk();
+    $searchResponse->assertSee($includedTask->title);
+    $searchResponse->assertDontSee('Excluded personal pending task');
+    $searchResponse->assertDontSee('Other admin personal completed task');
+});
+
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
     Notification::fake();
 
