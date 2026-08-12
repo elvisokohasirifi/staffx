@@ -606,7 +606,18 @@ class TaskCrudController extends CrudController
 
         abort_unless(backpack_user()->can('update', $task), Response::HTTP_FORBIDDEN);
         abort_unless(backpack_user()?->isStaff(), Response::HTTP_FORBIDDEN);
-        abort_unless($task->status === TaskStatus::Pending, Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        if ($task->status === TaskStatus::InProgress) {
+            \Alert::info('Task is already in progress.')->flash();
+
+            return redirect()->to(backpack_url("tasks/{$task->getKey()}/show"));
+        }
+
+        if ($task->status !== TaskStatus::Pending) {
+            \Alert::warning('This task can no longer be started from its current status.')->flash();
+
+            return redirect()->to(backpack_url("tasks/{$task->getKey()}/show"));
+        }
 
         $task->update([
             'status' => TaskStatus::InProgress,
@@ -623,7 +634,18 @@ class TaskCrudController extends CrudController
 
         abort_unless(backpack_user()->can('update', $task), Response::HTTP_FORBIDDEN);
         abort_unless(backpack_user()?->isStaff(), Response::HTTP_FORBIDDEN);
-        abort_unless($task->status === TaskStatus::InProgress, Response::HTTP_UNPROCESSABLE_ENTITY);
+
+        if ($task->status === TaskStatus::Completed) {
+            \Alert::info('Task is already marked as completed.')->flash();
+
+            return redirect()->to(backpack_url("tasks/{$task->getKey()}/show"));
+        }
+
+        if (! in_array($task->status, [TaskStatus::Pending, TaskStatus::InProgress], true)) {
+            \Alert::warning('This task cannot be marked as completed from its current status.')->flash();
+
+            return redirect()->to(backpack_url("tasks/{$task->getKey()}/show"));
+        }
 
         $task->update([
             'status' => TaskStatus::Completed,

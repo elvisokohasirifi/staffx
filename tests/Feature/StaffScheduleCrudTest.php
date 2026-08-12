@@ -837,6 +837,44 @@ test('a staff member can mark an in-progress task as completed from the action b
     expect($task->completed_at)->not->toBeNull();
 });
 
+test('a staff member can mark a pending task as completed from the completion route', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $task = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::Pending->value,
+    ]);
+
+    $response = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/mark-completed");
+
+    $response->assertRedirect("/tasks/{$task->id}/show");
+
+    $task->refresh();
+
+    expect($task->status)->toBe(TaskStatus::Completed);
+    expect($task->completed_at)->not->toBeNull();
+});
+
+test('a stale in-progress request redirects instead of failing for staff', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+    $task = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'status' => TaskStatus::InProgress->value,
+        'started_at' => now()->subMinutes(15),
+    ]);
+
+    $response = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/mark-in-progress");
+
+    $response->assertRedirect("/tasks/{$task->id}/show");
+
+    $task->refresh();
+
+    expect($task->status)->toBe(TaskStatus::InProgress);
+});
+
 test('a task show page lets an authorized user reply to a remark', function () {
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
