@@ -114,5 +114,67 @@ class AppServiceProvider extends ServiceProvider
             $view->with('adminTodayTasks', $adminTodayTasks);
             $view->with('staffOpenTasks', $staffOpenTasks);
         });
+
+        View::composer('admin.personal-tasks.list', function ($view): void {
+            $emptyStatusCounts = collect(TaskStatus::options())->map(fn (string $label, string $status): array => [
+                'status' => $status,
+                'label' => $label,
+                'count' => 0,
+            ])->values();
+
+            if (! backpack_auth()->check() || ! backpack_user()?->isAdmin()) {
+                $view->with('myTaskDashboardStats', [
+                    'total_tasks' => 0,
+                    'open_tasks' => 0,
+                    'completed_status' => 0,
+                    'completed' => 0,
+                    'could_not_be_achieved' => 0,
+                    'completion_rate' => 0.0,
+                ]);
+                $view->with('myTaskStatusCounts', $emptyStatusCounts);
+                $view->with('myTaskTotalCount', 0);
+
+                return;
+            }
+
+            $statsQuery = Task::query()
+                ->adminPersonalTasks()
+                ->where('admin_id', backpack_user()->getKey())
+                ->where('assignee_id', backpack_user()->getKey());
+
+            $totalTasks = (clone $statsQuery)->count();
+            $completedTasks = (clone $statsQuery)->summaryCompleted()->count();
+
+            $view->with('myTaskDashboardStats', [
+                'total_tasks' => $totalTasks,
+                'open_tasks' => (clone $statsQuery)->whereIn('status', [
+                    TaskStatus::Pending->value,
+                    TaskStatus::InProgress->value,
+                ])->count(),
+                'completed_status' => (clone $statsQuery)->where('status', TaskStatus::Completed->value)->count(),
+                'completed' => $completedTasks,
+                'could_not_be_achieved' => (clone $statsQuery)->where('status', TaskStatus::CouldNotBeAchieved->value)->count(),
+                'completion_rate' => $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100, 1) : 0.0,
+            ]);
+
+            $statusCounts = collect(TaskStatus::options())->map(function (string $label, string $status) use ($statsQuery): array {
+                $count = match ($status) {
+                    TaskStatus::Pending->value => (clone $statsQuery)->summaryPending()->count(),
+                    TaskStatus::InProgress->value => (clone $statsQuery)->where('status', TaskStatus::InProgress->value)->count(),
+                    TaskStatus::Completed->value => (clone $statsQuery)->summaryCompleted()->count(),
+                    TaskStatus::CouldNotBeAchieved->value => (clone $statsQuery)->where('status', TaskStatus::CouldNotBeAchieved->value)->count(),
+                    default => 0,
+                };
+
+                return [
+                    'status' => $status,
+                    'label' => $label,
+                    'count' => $count,
+                ];
+            })->values();
+
+            $view->with('myTaskStatusCounts', $statusCounts);
+            $view->with('myTaskTotalCount', $statusCounts->sum('count'));
+        });
     }
 }

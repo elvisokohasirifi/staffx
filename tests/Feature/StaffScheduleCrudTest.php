@@ -499,6 +499,82 @@ test('the my task show page includes the delete action script', function () {
     $response->assertSee('function deleteEntry(button)', false);
 });
 
+test('the my tasks page shows all-time personal task cards and status distribution', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-overview-admin@example.com',
+    ]);
+    $otherAdmin = User::factory()->admin()->create([
+        'email' => 'other-personal-overview-admin@example.com',
+    ]);
+
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Pending personal task',
+        'status' => TaskStatus::Pending->value,
+    ]);
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'In-progress personal task',
+        'status' => TaskStatus::InProgress->value,
+    ]);
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Awaiting approval personal task',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Approved personal task',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Blocked personal task',
+        'status' => TaskStatus::CouldNotBeAchieved->value,
+    ]);
+    Task::factory()->adminPersonal($otherAdmin)->create([
+        'title' => 'Other admin personal task',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get('/my-tasks');
+
+    $response->assertSuccessful();
+    $response->assertSee('Total Personal Tasks');
+    $response->assertSee('Pending / In Progress');
+    $response->assertSee('Approved Completed');
+    $response->assertSee('Could Not Be Completed');
+    $response->assertSee('Task Status Distribution (All Time)');
+    $response->assertSee('20.0%');
+    $response->assertViewHas('myTaskDashboardStats', function (array $stats): bool {
+        return $stats['total_tasks'] === 5
+            && $stats['open_tasks'] === 2
+            && $stats['completed_status'] === 2
+            && $stats['completed'] === 1
+            && $stats['could_not_be_achieved'] === 1
+            && $stats['completion_rate'] === 20.0;
+    });
+    $response->assertViewHas('myTaskStatusCounts', function ($statusCounts): bool {
+        return collect($statusCounts)->contains(fn (array $item): bool => $item['status'] === TaskStatus::Pending->value && $item['count'] === 2)
+            && collect($statusCounts)->contains(fn (array $item): bool => $item['status'] === TaskStatus::InProgress->value && $item['count'] === 1)
+            && collect($statusCounts)->contains(fn (array $item): bool => $item['status'] === TaskStatus::Completed->value && $item['count'] === 1)
+            && collect($statusCounts)->contains(fn (array $item): bool => $item['status'] === TaskStatus::CouldNotBeAchieved->value && $item['count'] === 1);
+    });
+});
+
+test('the my tasks list page includes the delete action script', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-list-delete-admin@example.com',
+    ]);
+
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'List delete-ready personal task',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get('/my-tasks');
+
+    $response->assertSuccessful();
+    $response->assertSee('function deleteEntry(button)', false);
+});
+
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
     Notification::fake();
 

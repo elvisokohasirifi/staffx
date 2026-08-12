@@ -21,6 +21,7 @@
 @endsection
 
 @push('after_scripts')
+    @include('vendor.backpack.crud.buttons.inc.delete_entry_script')
     <script>
         document.addEventListener('DOMContentLoaded', function () {
             const clearButton = document.getElementById('clearTaskFiltersButton');
