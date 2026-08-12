@@ -14,19 +14,21 @@
         $stats = $taskDashboardStats ?? [
             'due_today' => 0,
             'pending' => 0,
+            'open_tasks' => 0,
             'in_progress' => 0,
+            'completed_status' => 0,
             'completed' => 0,
             'could_not_be_achieved' => 0,
             'completion_rate' => 0.0,
         ];
         $todayTasks = $adminTodayTasks ?? collect();
-        $pendingTasks = $staffPendingTasks ?? collect();
+        $openTasks = $staffOpenTasks ?? collect();
     @endphp
 
     <div class="mb-4">
         <h2 class="mb-1">{{ backpack_user()?->isAdmin() ? 'Admin Dashboard' : 'My Dashboard' }}</h2>
         <p class="text-muted mb-0">
-            {{ backpack_user()?->isAdmin() ? 'Task summary for '.today()->toFormattedDateString().'.' : 'Pending tasks due today.' }}
+            {{ backpack_user()?->isAdmin() ? 'Task summary for '.today()->toFormattedDateString().'.' : 'Pending and in-progress tasks due today.' }}
         </p>
     </div>
 
@@ -121,15 +123,23 @@
             <div class="col-sm-6 col-xl-3">
                 <div class="card border-0 bg-warning text-dark h-100">
                     <div class="card-body">
-                        <div class="text-uppercase small fw-semibold">Pending Tasks</div>
-                        <div class="display-6 fw-bold">{{ $stats['pending'] }}</div>
+                        <div class="text-uppercase small fw-semibold">Pending / In Progress</div>
+                        <div class="display-6 fw-bold">{{ $stats['open_tasks'] }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="card border-0 bg-info text-white h-100">
+                    <div class="card-body">
+                        <div class="text-uppercase small fw-semibold">Completed</div>
+                        <div class="display-6 fw-bold">{{ $stats['completed_status'] }}</div>
                     </div>
                 </div>
             </div>
             <div class="col-sm-6 col-xl-3">
                 <div class="card border-0 bg-success text-white h-100">
                     <div class="card-body">
-                        <div class="text-uppercase small fw-semibold">Completed Today</div>
+                        <div class="text-uppercase small fw-semibold">Approved Completed</div>
                         <div class="display-6 fw-bold">{{ $stats['completed'] }}</div>
                     </div>
                 </div>
@@ -154,11 +164,11 @@
 
         <div class="card">
             <div class="card-header">
-                <h4 class="mb-0">My Pending Tasks Due Today</h4>
+                <h4 class="mb-0">My Pending & In Progress Tasks Due Today</h4>
             </div>
             <div class="card-body p-0">
-                @if($pendingTasks->isEmpty())
-                    <div class="p-4 text-muted">You do not have any pending tasks due today.</div>
+                @if($openTasks->isEmpty())
+                    <div class="p-4 text-muted">You do not have any pending or in-progress tasks due today.</div>
                 @else
                     <div class="table-responsive mobile-table-scroll">
                         <table class="table mb-0" style="min-width: 720px;">
@@ -166,12 +176,13 @@
                                 <tr>
                                     <th>Scheduled</th>
                                     <th>Task</th>
+                                    <th>Status</th>
                                     <th>Remarks</th>
                                     <th></th>
                                 </tr>
                             </thead>
                             <tbody>
-                                @foreach($pendingTasks as $task)
+                                @foreach($openTasks as $task)
                                     <tr>
                                         <td>{{ $task->scheduled_for?->format('M j, Y') }}</td>
                                         <td>
@@ -180,6 +191,7 @@
                                                 <div class="text-muted small">{{ \Illuminate\Support\Str::limit($task->description, 100) }}</div>
                                             @endif
                                         </td>
+                                        <td>{{ \App\TaskStatus::options()[$task->status->value] ?? $task->status->value }}</td>
                                         <td>{{ $task->remarks_count }}</td>
                                         <td class="text-end">
                                             <a href="{{ backpack_url("tasks/{$task->getKey()}/show") }}" class="btn btn-sm btn-outline-primary">Open Task</a>

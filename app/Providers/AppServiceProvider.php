@@ -63,7 +63,7 @@ class AppServiceProvider extends ServiceProvider
         ]), function ($view): void {
             $statsQuery = Task::query()->whereDate('scheduled_for', today());
             $adminTodayTasks = collect();
-            $pendingTasks = collect();
+            $staffOpenTasks = collect();
 
             if (backpack_auth()->check()) {
                 if (backpack_user()?->isAdmin()) {
@@ -79,10 +79,13 @@ class AppServiceProvider extends ServiceProvider
                 } else {
                     $statsQuery->where('assignee_id', backpack_user()->getKey());
 
-                    $pendingTasks = Task::query()
+                    $staffOpenTasks = Task::query()
                         ->where('assignee_id', backpack_user()->getKey())
                         ->whereDate('scheduled_for', today())
-                        ->where('status', TaskStatus::Pending->value)
+                        ->whereIn('status', [
+                            TaskStatus::Pending->value,
+                            TaskStatus::InProgress->value,
+                        ])
                         ->withCount('remarks')
                         ->orderBy('scheduled_for')
                         ->orderBy('sort_order')
@@ -96,13 +99,18 @@ class AppServiceProvider extends ServiceProvider
             $view->with('taskDashboardStats', [
                 'due_today' => $todayTasks,
                 'pending' => (clone $statsQuery)->summaryPending()->count(),
+                'open_tasks' => (clone $statsQuery)->whereIn('status', [
+                    TaskStatus::Pending->value,
+                    TaskStatus::InProgress->value,
+                ])->count(),
                 'in_progress' => (clone $statsQuery)->where('status', TaskStatus::InProgress->value)->count(),
+                'completed_status' => (clone $statsQuery)->where('status', TaskStatus::Completed->value)->count(),
                 'completed' => $completedTasks,
                 'could_not_be_achieved' => (clone $statsQuery)->where('status', TaskStatus::CouldNotBeAchieved->value)->count(),
                 'completion_rate' => $todayTasks > 0 ? round(($completedTasks / $todayTasks) * 100, 1) : 0.0,
             ]);
             $view->with('adminTodayTasks', $adminTodayTasks);
-            $view->with('staffPendingTasks', $pendingTasks);
+            $view->with('staffOpenTasks', $staffOpenTasks);
         });
     }
 }

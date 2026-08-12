@@ -1085,7 +1085,7 @@ test('a staff member cannot edit another persons task', function () {
     $response->assertForbidden();
 });
 
-test('a staff members dashboard shows only their pending tasks', function () {
+test('a staff members dashboard shows their open tasks and completion stats for the day', function () {
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
     $otherStaff = User::factory()->staff()->create();
@@ -1096,6 +1096,14 @@ test('a staff members dashboard shows only their pending tasks', function () {
         'title' => 'Pending task for staff',
         'scheduled_for' => today()->toDateString(),
         'status' => TaskStatus::Pending->value,
+    ]);
+
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'In progress task for staff',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::InProgress->value,
     ]);
 
     Task::factory()->create([
@@ -1134,14 +1142,18 @@ test('a staff members dashboard shows only their pending tasks', function () {
     $response = $this->actingAs($staff, 'backpack')->get('/dashboard');
 
     $response->assertSuccessful();
-    $response->assertSee('Pending Tasks');
-    $response->assertSee('Completed Today');
+    $response->assertSee('Pending / In Progress');
+    $response->assertSee('Completed');
+    $response->assertSee('Approved Completed');
     $response->assertSee('Could Not Be Completed');
     $response->assertSee('Completion Rate');
+    $response->assertSee('2');
     $response->assertSee('1');
-    $response->assertSee('33.3%');
-    $response->assertSee('My Pending Tasks Due Today');
+    $response->assertSee('25.0%');
+    $response->assertSeeText('My Pending & In Progress Tasks Due Today');
     $response->assertSee($pendingTask->title);
+    $response->assertSee('In progress task for staff');
+    $response->assertSee('In Progress');
     $response->assertDontSee('Completed task for staff');
     $response->assertDontSee('Blocked task for staff');
     $response->assertDontSee('Another staff pending task');
