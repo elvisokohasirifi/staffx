@@ -575,6 +575,84 @@ test('the my tasks list page includes the delete action script', function () {
     $response->assertSee('function deleteEntry(button)', false);
 });
 
+test('an admin can open the my tasks bulk update page and update selected personal tasks', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-bulk-update-admin@example.com',
+    ]);
+
+    $firstTask = Task::factory()->adminPersonal($admin)->create([
+        'title' => 'First personal bulk update task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Pending->value,
+        'approved_as_completed' => false,
+    ]);
+    $secondTask = Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Second personal bulk update task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Pending->value,
+        'approved_as_completed' => false,
+    ]);
+
+    $pageResponse = $this->actingAs($admin, 'backpack')->get('/my-tasks/bulk-update');
+
+    $pageResponse->assertSuccessful();
+    $pageResponse->assertSee('Bulk Update My Tasks');
+    $pageResponse->assertSee($firstTask->title);
+    $pageResponse->assertSee($secondTask->title);
+
+    $updateResponse = $this->actingAs($admin, 'backpack')->post('/my-tasks/bulk-update', [
+        'task_ids' => [$firstTask->getKey(), $secondTask->getKey()],
+        'scheduled_for' => today()->addDay()->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approval_action' => 'approve',
+        'filter_scheduled_for' => today()->toDateString(),
+    ]);
+
+    $updateResponse->assertRedirect('/my-tasks/bulk-update?filter_scheduled_for='.today()->toDateString());
+
+    $firstTask->refresh();
+    $secondTask->refresh();
+
+    expect($firstTask->status)->toBe(TaskStatus::Completed);
+    expect($secondTask->status)->toBe(TaskStatus::Completed);
+    expect($firstTask->approved_as_completed)->toBeTrue();
+    expect($secondTask->approved_as_completed)->toBeTrue();
+    expect($firstTask->scheduled_for?->toDateString())->toBe(today()->addDay()->toDateString());
+    expect($secondTask->scheduled_for?->toDateString())->toBe(today()->addDay()->toDateString());
+});
+
+test('an admin can open the my tasks bulk delete page and delete selected personal tasks', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-bulk-delete-admin@example.com',
+    ]);
+
+    $firstTask = Task::factory()->adminPersonal($admin)->create([
+        'title' => 'First personal bulk delete task',
+        'scheduled_for' => today()->toDateString(),
+    ]);
+    $secondTask = Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Second personal bulk delete task',
+        'scheduled_for' => today()->toDateString(),
+    ]);
+
+    $pageResponse = $this->actingAs($admin, 'backpack')->get('/my-tasks/bulk-delete');
+
+    $pageResponse->assertSuccessful();
+    $pageResponse->assertSee('Bulk Delete My Tasks');
+    $pageResponse->assertSee($firstTask->title);
+    $pageResponse->assertSee($secondTask->title);
+
+    $deleteResponse = $this->actingAs($admin, 'backpack')->post('/my-tasks/bulk-delete', [
+        'task_ids' => [$firstTask->getKey(), $secondTask->getKey()],
+        'filter_scheduled_for' => today()->toDateString(),
+    ]);
+
+    $deleteResponse->assertRedirect('/my-tasks/bulk-delete?filter_scheduled_for='.today()->toDateString());
+
+    expect(Task::query()->whereKey($firstTask->getKey())->exists())->toBeFalse();
+    expect(Task::query()->whereKey($secondTask->getKey())->exists())->toBeFalse();
+});
+
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
     Notification::fake();
 

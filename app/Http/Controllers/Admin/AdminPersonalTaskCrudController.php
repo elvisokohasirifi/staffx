@@ -13,11 +13,13 @@ use Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -65,6 +67,8 @@ class AdminPersonalTaskCrudController extends CrudController
         CRUD::setDefaultPageLength(20);
         CRUD::setPageLengthMenu([20, 50, 100]);
         CRUD::addButtonFromView('top', 'bulk_create_my_tasks', 'vendor.backpack.crud.buttons.bulk_create_my_tasks', 'end');
+        CRUD::addButtonFromView('top', 'bulk_delete_my_tasks', 'vendor.backpack.crud.buttons.bulk_delete_my_tasks', 'end');
+        CRUD::addButtonFromView('top', 'bulk_update_my_tasks', 'vendor.backpack.crud.buttons.bulk_update_my_tasks', 'end');
 
         CRUD::addColumn([
             'name' => 'title',
@@ -204,6 +208,139 @@ class AdminPersonalTaskCrudController extends CrudController
         return redirect()->to(backpack_url('my-tasks'));
     }
 
+    public function bulkUpdate(Request $request): View
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $filters = $this->bulkTaskFilters($request);
+        $tasks = $this->bulkTaskQuery($filters)
+            ->orderBy('scheduled_for')
+            ->orderBy('sort_order')
+            ->get();
+
+        return view('admin.personal-tasks.bulk-update', [
+            'tasks' => $tasks,
+            'filters' => $filters,
+            'taskStatusOptions' => TaskStatus::options(),
+        ]);
+    }
+
+    public function bulkDelete(Request $request): View
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $filters = $this->bulkTaskFilters($request);
+        $tasks = $this->bulkTaskQuery($filters)
+            ->orderBy('scheduled_for')
+            ->orderBy('sort_order')
+            ->get();
+
+        return view('admin.personal-tasks.bulk-delete', [
+            'tasks' => $tasks,
+            'filters' => $filters,
+            'taskStatusOptions' => TaskStatus::options(),
+        ]);
+    }
+
+    public function bulkDeleteDestroy(Request $request): RedirectResponse
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $validated = $request->validate([
+            'task_ids' => ['required', 'array', 'min:1'],
+            'task_ids.*' => ['required', 'uuid'],
+            'filter_scheduled_for' => ['nullable', 'date'],
+            'filter_status' => ['nullable', 'string'],
+            'filter_approval_status' => ['nullable', 'string'],
+        ], [], [
+            'task_ids' => 'tasks',
+        ]);
+
+        $selectedTasks = Task::query()
+            ->adminPersonalTasks()
+            ->where('admin_id', backpack_user()->getKey())
+            ->where('assignee_id', backpack_user()->getKey())
+            ->whereKey($validated['task_ids'])
+            ->get();
+
+        DB::transaction(function () use ($selectedTasks): void {
+            $selectedTasks->each(fn (Task $task): bool => (bool) $task->delete());
+        });
+
+        \Alert::success($selectedTasks->count().' personal task(s) were deleted successfully.')->flash();
+
+        return redirect()->route('my-tasks.bulk-delete', array_filter([
+            'filter_scheduled_for' => $validated['filter_scheduled_for'] ?? null,
+            'filter_status' => $validated['filter_status'] ?? null,
+            'filter_approval_status' => $validated['filter_approval_status'] ?? null,
+        ], fn ($value) => filled($value)));
+    }
+
+    public function bulkUpdateStore(Request $request): RedirectResponse
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $validated = $request->validate([
+            'task_ids' => ['required', 'array', 'min:1'],
+            'task_ids.*' => ['required', 'uuid'],
+            'scheduled_for' => ['nullable', 'date'],
+            'status' => ['nullable', Rule::enum(TaskStatus::class)],
+            'approval_action' => ['nullable', Rule::in(['approve', 'unapprove'])],
+            'filter_scheduled_for' => ['nullable', 'date'],
+            'filter_status' => ['nullable', 'string'],
+            'filter_approval_status' => ['nullable', 'string'],
+        ], [], [
+            'task_ids' => 'tasks',
+            'scheduled_for' => 'scheduled date',
+            'approval_action' => 'approval status',
+        ]);
+
+        $hasChanges = filled($validated['scheduled_for'] ?? null)
+            || filled($validated['status'] ?? null)
+            || filled($validated['approval_action'] ?? null);
+
+        if (! $hasChanges) {
+            return back()
+                ->withErrors(['bulk_update' => 'Choose at least one field to update.'])
+                ->withInput();
+        }
+
+        $selectedTasks = Task::query()
+            ->adminPersonalTasks()
+            ->where('admin_id', backpack_user()->getKey())
+            ->where('assignee_id', backpack_user()->getKey())
+            ->whereKey($validated['task_ids'])
+            ->get();
+
+        DB::transaction(function () use ($validated, $selectedTasks): void {
+            foreach ($selectedTasks as $task) {
+                $updateData = [];
+
+                if (filled($validated['scheduled_for'] ?? null)) {
+                    $updateData['scheduled_for'] = $validated['scheduled_for'];
+                }
+
+                if (filled($validated['status'] ?? null)) {
+                    $updateData['status'] = $validated['status'];
+                }
+
+                if (filled($validated['approval_action'] ?? null)) {
+                    $updateData['approved_as_completed'] = $validated['approval_action'] === 'approve';
+                }
+
+                $task->update($updateData);
+            }
+        });
+
+        \Alert::success($selectedTasks->count().' personal task(s) were updated successfully.')->flash();
+
+        return redirect()->route('my-tasks.bulk-update', array_filter([
+            'filter_scheduled_for' => $validated['filter_scheduled_for'] ?? null,
+            'filter_status' => $validated['filter_status'] ?? null,
+            'filter_approval_status' => $validated['filter_approval_status'] ?? null,
+        ], fn ($value) => filled($value)));
+    }
+
     public function update()
     {
         $task = $this->findPersonalTaskOrFail((string) request()->route('id'));
@@ -240,6 +377,49 @@ class AdminPersonalTaskCrudController extends CrudController
         CRUD::field('status')->label('Status')->type('select_from_array')->options(TaskStatus::options())->default(TaskStatus::Pending->value);
         CRUD::field('sort_order')->label('Sort Order')->type('number')->default(1)->attributes(['min' => 0]);
         CRUD::field('outcome_notes')->label('Outcome Notes')->type('textarea');
+    }
+
+    /**
+     * @return array{filter_scheduled_for: ?string, filter_status: ?string, filter_approval_status: ?string}
+     */
+    private function bulkTaskFilters(Request $request): array
+    {
+        return [
+            'filter_scheduled_for' => $request->query('filter_scheduled_for', $request->query->count() > 0 ? null : today()->toDateString()),
+            'filter_status' => $request->string('filter_status')->toString() ?: null,
+            'filter_approval_status' => $request->string('filter_approval_status')->toString() ?: null,
+        ];
+    }
+
+    /**
+     * @param  array{filter_scheduled_for: ?string, filter_status: ?string, filter_approval_status: ?string}  $filters
+     */
+    private function bulkTaskQuery(array $filters): Builder
+    {
+        $query = Task::query()
+            ->adminPersonalTasks()
+            ->where('admin_id', backpack_user()->getKey())
+            ->where('assignee_id', backpack_user()->getKey());
+
+        if (filled($filters['filter_scheduled_for'])) {
+            $query->whereDate('scheduled_for', $filters['filter_scheduled_for']);
+        }
+
+        if (filled($filters['filter_status']) && array_key_exists($filters['filter_status'], TaskStatus::options())) {
+            $query->where('status', $filters['filter_status']);
+        }
+
+        if ($filters['filter_approval_status'] === 'pending') {
+            $query->where('status', TaskStatus::Completed->value)
+                ->where('approved_as_completed', false);
+        }
+
+        if ($filters['filter_approval_status'] === 'approved') {
+            $query->where('status', TaskStatus::Completed->value)
+                ->where('approved_as_completed', true);
+        }
+
+        return $query;
     }
 
     private function applyTaskFilters(): void
