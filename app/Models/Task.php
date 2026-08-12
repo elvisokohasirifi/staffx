@@ -20,6 +20,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'scheduled_for',
     'status',
     'approved_as_completed',
+    'is_admin_personal',
     'sort_order',
     'outcome_notes',
     'admin_id',
@@ -46,6 +47,7 @@ class Task extends Model
             'scheduled_for' => 'date',
             'status' => TaskStatus::class,
             'approved_as_completed' => 'boolean',
+            'is_admin_personal' => 'boolean',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
         ];
@@ -99,6 +101,16 @@ class Task extends Model
         return $query
             ->where('status', TaskStatus::Completed->value)
             ->where('approved_as_completed', true);
+    }
+
+    public function scopeStaffTasks(Builder $query): Builder
+    {
+        return $query->where('is_admin_personal', false);
+    }
+
+    public function scopeAdminPersonalTasks(Builder $query): Builder
+    {
+        return $query->where('is_admin_personal', true);
     }
 
     public function summaryStatus(): TaskStatus

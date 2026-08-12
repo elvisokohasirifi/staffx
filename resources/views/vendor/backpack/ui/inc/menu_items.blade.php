@@ -2,6 +2,7 @@
 <x-backpack::menu-item title="Dashboard" icon="la la-home" :link="backpack_url('dashboard')" />
 <x-backpack::menu-item title="Tasks" icon="la la-calendar-check" :link="backpack_url('tasks')" />
 @if(backpack_user()?->isAdmin())
+    <x-backpack::menu-item title="My Tasks" icon="la la-user-check" :link="backpack_url('my-tasks')" />
     <li class="nav-item">
         <a class="nav-link" href="{{ route('tasks.index', ['status' => \App\TaskStatus::Completed->value, 'approval_status' => 'pending']) }}">
             <i class="nav-icon la la-check-circle d-block d-lg-none d-xl-block"></i>

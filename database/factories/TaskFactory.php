@@ -30,10 +30,24 @@ class TaskFactory extends Factory
                 TaskStatus::CouldNotBeAchieved->value,
             ]),
             'approved_as_completed' => false,
+            'is_admin_personal' => false,
             'sort_order' => fake()->numberBetween(0, 10),
             'outcome_notes' => fake()->optional()->sentence(),
             'admin_id' => User::factory()->admin(),
             'assignee_id' => User::factory()->staff(),
         ];
+    }
+
+    public function adminPersonal(?User $admin = null): static
+    {
+        return $this->state(function () use ($admin): array {
+            $ownerId = $admin?->getKey() ?? User::factory()->admin()->create()->getKey();
+
+            return [
+                'is_admin_personal' => true,
+                'admin_id' => $ownerId,
+                'assignee_id' => $ownerId,
+            ];
+        });
     }
 }

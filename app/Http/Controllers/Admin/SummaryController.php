@@ -20,7 +20,7 @@ class SummaryController extends Controller
         $startDate = $this->parseDate($request->query('start_date'));
         $endDate = $this->parseDate($request->query('end_date'));
 
-        $taskSummaryQuery = Task::query();
+        $taskSummaryQuery = Task::query()->staffTasks();
 
         if ($startDate !== null) {
             $taskSummaryQuery->whereDate('scheduled_for', '>=', $startDate->toDateString());

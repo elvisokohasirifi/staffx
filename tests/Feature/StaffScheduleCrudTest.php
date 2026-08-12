@@ -211,6 +211,96 @@ test('an admin can create a single task from the default create form', function 
     expect($activity)->not->toBeNull();
 });
 
+test('admin personal tasks are only visible to their owner and are excluded from shared summaries', function () {
+    $ownerAdmin = User::factory()->admin()->create([
+        'email' => 'owner-admin@example.com',
+    ]);
+    $otherAdmin = User::factory()->admin()->create([
+        'email' => 'other-admin@example.com',
+    ]);
+    $staff = User::factory()->staff()->create([
+        'name' => 'Summary Staff',
+        'email' => 'summary-staff@example.com',
+    ]);
+
+    $personalTask = Task::factory()->adminPersonal($ownerAdmin)->create([
+        'title' => 'Owner personal task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+
+    Task::factory()->create([
+        'admin_id' => $ownerAdmin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Shared staff task',
+        'scheduled_for' => today()->toDateString(),
+        'status' => TaskStatus::Pending->value,
+    ]);
+
+    $ownerPersonalTasksResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/my-tasks/search', [
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => ''],
+        'datatable_id' => 'crudTable',
+    ], [
+        'X-Requested-With' => 'XMLHttpRequest',
+        'Accept' => 'application/json',
+    ]);
+
+    $ownerPersonalTasksResponse->assertOk();
+    $ownerPersonalTasksResponse->assertSee('Owner personal task');
+    $ownerPersonalTasksResponse->assertDontSee('Shared staff task');
+
+    $ownerSharedTasksResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/tasks/search', [
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => ''],
+        'datatable_id' => 'crudTable',
+    ], [
+        'X-Requested-With' => 'XMLHttpRequest',
+        'Accept' => 'application/json',
+    ]);
+
+    $ownerSharedTasksResponse->assertOk();
+    $ownerSharedTasksResponse->assertSee('Shared staff task');
+    $ownerSharedTasksResponse->assertDontSee('Owner personal task');
+
+    $otherAdminPersonalTasksResponse = $this->actingAs($otherAdmin, 'backpack')->post('/my-tasks/search', [
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => ''],
+        'datatable_id' => 'crudTable',
+    ], [
+        'X-Requested-With' => 'XMLHttpRequest',
+        'Accept' => 'application/json',
+    ]);
+
+    $otherAdminPersonalTasksResponse->assertOk();
+    $otherAdminPersonalTasksResponse->assertDontSee('Owner personal task');
+
+    $otherAdminPersonalTaskShowResponse = $this->actingAs($otherAdmin, 'backpack')->get("/my-tasks/{$personalTask->id}/show");
+
+    $otherAdminPersonalTaskShowResponse->assertNotFound();
+
+    $summaryResponse = $this->actingAs($ownerAdmin, 'backpack')->get('/summary');
+
+    $summaryResponse->assertSuccessful();
+    $summaryResponse->assertViewHas('staffSummaries', function ($staffSummaries) use ($staff): bool {
+        $summary = collect($staffSummaries)->first(fn (array $item): bool => $item['staff']->is($staff));
+
+        return $summary !== null
+            && $summary['assigned_count'] === 1
+            && $summary['completed_count'] === 0
+            && $summary['pending_count'] === 1
+            && $summary['could_not_be_achieved_count'] === 0;
+    });
+    $summaryResponse->assertViewHas('statusCounts', function ($statusCounts): bool {
+        return collect($statusCounts)->contains(fn (array $item): bool => $item['status'] === TaskStatus::Pending->value && $item['count'] === 1)
+            && collect($statusCounts)->contains(fn (array $item): bool => $item['status'] === TaskStatus::Completed->value && $item['count'] === 0);
+    });
+});
+
 test('an admin can assign many tasks to a staff member from the bulk create page', function () {
     Notification::fake();
 
@@ -1142,6 +1232,8 @@ test('a staff members dashboard shows their open tasks and completion stats for 
     $response = $this->actingAs($staff, 'backpack')->get('/dashboard');
 
     $response->assertSuccessful();
+    $response->assertSee('Total Assigned Today');
+    $response->assertSee('4');
     $response->assertSee('Pending / In Progress');
     $response->assertSee('Completed');
     $response->assertSee('Approved Completed');

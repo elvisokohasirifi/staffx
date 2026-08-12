@@ -62,6 +62,7 @@ class TaskCrudController extends CrudController
         CRUD::setRoute(trim((string) config('backpack.base.route_prefix'), '/').'/tasks');
         CRUD::setEntityNameStrings('task', 'tasks');
         CRUD::with(['admin', 'assignee']);
+        CRUD::addClause('where', 'is_admin_personal', false);
 
         $this->crud->query->withCount('remarks')->orderBy('scheduled_for')->orderBy('sort_order');
 
@@ -307,6 +308,7 @@ class TaskCrudController extends CrudController
 
         $createdTasks = DB::transaction(function () use ($validated, $taskTitles): Collection {
             $startingSortOrder = (int) Task::query()
+                ->staffTasks()
                 ->where('assignee_id', $validated['assignee_id'])
                 ->whereDate('scheduled_for', $validated['scheduled_for'])
                 ->max('sort_order');
@@ -388,6 +390,7 @@ class TaskCrudController extends CrudController
         ]);
 
         $selectedTasks = Task::query()
+            ->staffTasks()
             ->whereKey($validated['task_ids'])
             ->get();
 
@@ -443,6 +446,7 @@ class TaskCrudController extends CrudController
         }
 
         $selectedTasks = Task::query()
+            ->staffTasks()
             ->whereKey($validated['task_ids'])
             ->get();
 
@@ -500,7 +504,7 @@ class TaskCrudController extends CrudController
 
     public function update()
     {
-        $task = Task::query()->findOrFail((string) request()->route('id'));
+        $task = $this->findSharedTaskOrFail((string) request()->route('id'));
         $wasAssigneeId = $task->assignee_id;
         $wasApprovedAsCompleted = $task->approved_as_completed;
 
@@ -521,7 +525,7 @@ class TaskCrudController extends CrudController
 
     public function edit($id)
     {
-        $task = Task::query()->findOrFail($id);
+        $task = $this->findSharedTaskOrFail((string) $id);
         abort_unless(backpack_user()->can('update', $task), 403);
 
         return $this->traitEdit($id);
@@ -530,6 +534,7 @@ class TaskCrudController extends CrudController
     public function show($id)
     {
         $task = Task::query()
+            ->staffTasks()
             ->with([
                 'admin',
                 'assignee',
@@ -564,7 +569,7 @@ class TaskCrudController extends CrudController
 
     public function storeRemark(Request $request, string $id): RedirectResponse
     {
-        $task = Task::query()->findOrFail($id);
+        $task = $this->findSharedTaskOrFail($id);
 
         abort_unless(backpack_user()->can('view', $task), 403);
         abort_unless(backpack_user()->can('create', TaskRemark::class), 403);
@@ -597,7 +602,7 @@ class TaskCrudController extends CrudController
 
     public function markInProgress(string $id): RedirectResponse
     {
-        $task = Task::query()->findOrFail($id);
+        $task = $this->findSharedTaskOrFail($id);
 
         abort_unless(backpack_user()->can('update', $task), Response::HTTP_FORBIDDEN);
         abort_unless(backpack_user()?->isStaff(), Response::HTTP_FORBIDDEN);
@@ -614,7 +619,7 @@ class TaskCrudController extends CrudController
 
     public function markCompleted(string $id): RedirectResponse
     {
-        $task = Task::query()->findOrFail($id);
+        $task = $this->findSharedTaskOrFail($id);
 
         abort_unless(backpack_user()->can('update', $task), Response::HTTP_FORBIDDEN);
         abort_unless(backpack_user()?->isStaff(), Response::HTTP_FORBIDDEN);
@@ -631,7 +636,7 @@ class TaskCrudController extends CrudController
 
     public function approveCompleted(string $id): RedirectResponse
     {
-        $task = Task::query()->findOrFail($id);
+        $task = $this->findSharedTaskOrFail($id);
 
         abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
         abort_unless($task->status === TaskStatus::Completed, Response::HTTP_UNPROCESSABLE_ENTITY);
@@ -652,6 +657,7 @@ class TaskCrudController extends CrudController
         abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
 
         $approvedTasks = Task::query()
+            ->staffTasks()
             ->with('assignee')
             ->where('status', TaskStatus::Completed->value)
             ->where('approved_as_completed', false)
@@ -785,7 +791,7 @@ class TaskCrudController extends CrudController
      */
     private function bulkTaskQuery(array $filters)
     {
-        $query = Task::query();
+        $query = Task::query()->staffTasks();
 
         if (filled($filters['filter_assignee_id'])) {
             $query->where('assignee_id', $filters['filter_assignee_id']);
@@ -810,5 +816,10 @@ class TaskCrudController extends CrudController
         }
 
         return $query;
+    }
+
+    private function findSharedTaskOrFail(string $id): Task
+    {
+        return Task::query()->staffTasks()->findOrFail($id);
     }
 }

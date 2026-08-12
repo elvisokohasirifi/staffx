@@ -48,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
 
             if (backpack_auth()->check() && backpack_user()?->isAdmin()) {
                 $pendingTaskApprovalCount = Task::query()
+                    ->staffTasks()
                     ->where('status', TaskStatus::Completed->value)
                     ->where('approved_as_completed', false)
                     ->count();
@@ -61,13 +62,14 @@ class AppServiceProvider extends ServiceProvider
             'backpack.ui::dashboard',
             'backpack.theme-tabler::dashboard',
         ]), function ($view): void {
-            $statsQuery = Task::query()->whereDate('scheduled_for', today());
+            $statsQuery = Task::query()->staffTasks()->whereDate('scheduled_for', today());
             $adminTodayTasks = collect();
             $staffOpenTasks = collect();
 
             if (backpack_auth()->check()) {
                 if (backpack_user()?->isAdmin()) {
                     $adminTodayTasks = Task::query()
+                        ->staffTasks()
                         ->whereDate('scheduled_for', today())
                         ->leftJoin('users as assignees', 'assignees.id', '=', 'tasks.assignee_id')
                         ->select('tasks.*')
@@ -80,6 +82,7 @@ class AppServiceProvider extends ServiceProvider
                     $statsQuery->where('assignee_id', backpack_user()->getKey());
 
                     $staffOpenTasks = Task::query()
+                        ->staffTasks()
                         ->where('assignee_id', backpack_user()->getKey())
                         ->whereDate('scheduled_for', today())
                         ->whereIn('status', [

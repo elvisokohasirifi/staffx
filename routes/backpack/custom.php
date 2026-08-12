@@ -20,6 +20,7 @@ Route::group([
     Route::post('staff/{id}/impersonate', 'UserCrudController@impersonate')->name('staff.impersonate');
     Route::post('stop-impersonating', 'UserCrudController@stopImpersonating')->name('staff.stop-impersonating');
     Route::get('summary', 'SummaryController@index')->name('summary.index');
+    Route::crud('my-tasks', 'AdminPersonalTaskCrudController');
     Route::get('tasks/bulk-create', 'TaskCrudController@bulkCreate')->name('tasks.bulk-create');
     Route::post('tasks/bulk-create', 'TaskCrudController@bulkStore')->name('tasks.bulk-store');
     Route::get('tasks/bulk-delete', 'TaskCrudController@bulkDelete')->name('tasks.bulk-delete');

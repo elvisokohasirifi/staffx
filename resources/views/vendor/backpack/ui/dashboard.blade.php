@@ -121,6 +121,14 @@
     @else
         <div class="row g-3 mb-4">
             <div class="col-sm-6 col-xl-3">
+                <div class="card border-0 bg-primary text-white h-100">
+                    <div class="card-body">
+                        <div class="text-uppercase small fw-semibold">Total Assigned Today</div>
+                        <div class="display-6 fw-bold">{{ $stats['due_today'] }}</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
                 <div class="card border-0 bg-warning text-dark h-100">
                     <div class="card-body">
                         <div class="text-uppercase small fw-semibold">Pending / In Progress</div>
