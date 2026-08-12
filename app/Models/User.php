@@ -98,6 +98,20 @@ class User extends Authenticatable
         return $this->isAdmin();
     }
 
+    public function hasAdminEmailAccess(): bool
+    {
+        $configuredAdminEmail = config('app.admin_email');
+
+        return is_string($configuredAdminEmail)
+            && $configuredAdminEmail !== ''
+            && strcasecmp($this->email, $configuredAdminEmail) === 0;
+    }
+
+    public function canManageAllUsers(): bool
+    {
+        return $this->isAdmin() && $this->hasAdminEmailAccess();
+    }
+
     public function avatar(): string
     {
         return $this->google_avatar ?: 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==';

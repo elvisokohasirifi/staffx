@@ -684,7 +684,7 @@ class TaskCrudController extends CrudController
 
     private function canViewActivityButtons(): bool
     {
-        return backpack_user()?->email === 'elvisokohasirifi@gmail.com';
+        return backpack_user()?->hasAdminEmailAccess() ?? false;
     }
 
     private function hideActivityButtonsWhenUnauthorized(): void

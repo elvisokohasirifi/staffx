@@ -2,19 +2,23 @@
 
 use App\Jobs\RunDatabaseBackupJob;
 use App\Jobs\SendPendingTaskRemindersJob;
+use App\Models\EmailNotification;
 use App\Models\Task;
 use App\Models\TaskRemark;
 use App\Models\User;
+use App\Notifications\AdminEmailNotification;
 use App\Notifications\PendingTasksReminderNotification;
 use App\Notifications\TasksApprovedNotification;
 use App\Notifications\TasksAssignedNotification;
 use App\TaskStatus;
+use App\UserRole;
 use Backpack\CRUD\app\Notifications\ResetPasswordNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Mail\SentMessage as LaravelSentMessage;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Laravel\Socialite\Facades\Socialite;
@@ -168,6 +172,98 @@ test('an admin can create a staff account and trigger a password reset email', f
         ->first();
 
     expect($activity)->not->toBeNull();
+});
+
+test('an admin can create an email notification for specific recipients', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+    $staffOne = User::factory()->staff()->create([
+        'name' => 'Ada Staff',
+        'email' => 'ada@example.com',
+    ]);
+    $staffTwo = User::factory()->staff()->create([
+        'name' => 'Zoe Staff',
+        'email' => 'zoe@example.com',
+    ]);
+    $otherAdmin = User::factory()->admin()->create([
+        'name' => 'Elvis Admin',
+        'email' => 'elvis@example.com',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/email-notifications', [
+        'subject' => 'Important update',
+        'body' => "Please review today's schedule.\n\nReach out if you have questions.",
+        'recipient_user_ids' => [$staffOne->getKey(), $otherAdmin->getKey()],
+    ]);
+
+    $response->assertRedirect();
+
+    $emailNotification = EmailNotification::query()->first();
+
+    expect($emailNotification)->not->toBeNull();
+    expect($emailNotification?->subject)->toBe('Important update');
+    expect($emailNotification?->body)->toContain("today's schedule");
+    expect($emailNotification?->recipient_roles)->toBeNull();
+    expect($emailNotification?->recipient_count)->toBe(2);
+    expect($emailNotification?->sent_by_id)->toBe($admin->getKey());
+    expect($emailNotification?->sent_at)->not->toBeNull();
+
+    Notification::assertSentTo($staffOne, AdminEmailNotification::class, function (AdminEmailNotification $notification): bool {
+        return $notification->subjectLine === 'Important update'
+            && str_contains($notification->messageBody, "today's schedule");
+    });
+    Notification::assertSentTo($otherAdmin, AdminEmailNotification::class);
+    expect(Notification::sent($staffOne, AdminEmailNotification::class))->toHaveCount(1);
+    expect(Notification::sent($otherAdmin, AdminEmailNotification::class))->toHaveCount(1);
+    Notification::assertNotSentTo($staffTwo, AdminEmailNotification::class);
+});
+
+test('the email notification create page includes clear controls for recipient selections', function () {
+    $admin = User::factory()->admin()->create();
+
+    $response = $this->actingAs($admin, 'backpack')->get('/email-notifications/create');
+
+    $response->assertSuccessful();
+    $response->assertSee('Clear role selection');
+    $response->assertSee('Clear specific recipients');
+    $response->assertSee('recipient_roles[]', false);
+    $response->assertSee('recipient_user_ids[]', false);
+});
+
+test('email notifications require at least one resolved recipient', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+
+    $response = $this->actingAs($admin, 'backpack')->post('/email-notifications', [
+        'subject' => 'Important update',
+        'body' => 'Please review today\'s schedule.',
+        'recipient_roles' => [],
+        'recipient_user_ids' => [],
+    ]);
+
+    $response->assertSessionHasErrors('recipient_roles');
+    expect(EmailNotification::query()->count())->toBe(0);
+    Notification::assertNothingSent();
+});
+
+test('email notifications require either roles or specific recipients but not both', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $response = $this->actingAs($admin, 'backpack')->post('/email-notifications', [
+        'subject' => 'Important update',
+        'body' => 'Please review today\'s schedule.',
+        'recipient_roles' => [UserRole::Staff->value],
+        'recipient_user_ids' => [$staff->getKey()],
+    ]);
+
+    $response->assertSessionHasErrors(['recipient_roles', 'recipient_user_ids']);
+    expect(EmailNotification::query()->count())->toBe(0);
+    Notification::assertNothingSent();
 });
 
 test('an admin can create a single task from the default create form', function () {
@@ -887,7 +983,90 @@ test('a staff member cannot open another staff management page', function () {
     $response->assertForbidden();
 });
 
+test('the configured admin email can see and update all users including admins', function () {
+    config()->set('app.admin_email', 'owner@example.com');
+
+    $ownerAdmin = User::factory()->admin()->create([
+        'email' => 'owner@example.com',
+    ]);
+    $otherAdmin = User::factory()->admin()->create([
+        'name' => 'Other Admin',
+        'email' => 'other-admin@example.com',
+    ]);
+    $staff = User::factory()->staff()->create([
+        'name' => 'Listed Staff',
+        'email' => 'listed-staff@example.com',
+    ]);
+
+    $listResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/staff/search', [
+        'draw' => 1,
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => '', 'regex' => 'false'],
+    ]);
+
+    $listResponse->assertSuccessful();
+    $listResponse->assertSee($otherAdmin->email);
+    $listResponse->assertSee($staff->email);
+    $listResponse->assertSee('Admin');
+    $listResponse->assertSee('Staff');
+    $listResponse->assertDontSee('/tasks?staff_id='.$otherAdmin->id, false);
+    $listResponse->assertSee('/tasks?staff_id='.$staff->id, false);
+
+    $editResponse = $this->actingAs($ownerAdmin, 'backpack')->get("/staff/{$otherAdmin->id}/edit");
+
+    $editResponse->assertSuccessful();
+    $editResponse->assertSee('name="role"', false);
+    $editResponse->assertSee('name="password"', false);
+
+    $updateResponse = $this->actingAs($ownerAdmin, 'backpack')->put("/staff/{$otherAdmin->id}", [
+        'id' => $otherAdmin->id,
+        'name' => 'Updated Admin Name',
+        'email' => 'updated-admin@example.com',
+        'password' => 'new-password-123',
+        'role' => UserRole::Staff->value,
+    ]);
+
+    $updateResponse->assertRedirect();
+
+    $otherAdmin->refresh();
+
+    expect($otherAdmin->name)->toBe('Updated Admin Name');
+    expect($otherAdmin->email)->toBe('updated-admin@example.com');
+    expect($otherAdmin->isStaff())->toBeTrue();
+    expect(Hash::check('new-password-123', $otherAdmin->password))->toBeTrue();
+});
+
+test('regular admins still only manage staff users', function () {
+    config()->set('app.admin_email', 'owner@example.com');
+
+    $ownerAdmin = User::factory()->admin()->create([
+        'email' => 'owner@example.com',
+    ]);
+    $regularAdmin = User::factory()->admin()->create([
+        'email' => 'regular-admin@example.com',
+    ]);
+    $staff = User::factory()->staff()->create();
+
+    $listResponse = $this->actingAs($regularAdmin, 'backpack')->post('/staff/search', [
+        'draw' => 1,
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => '', 'regex' => 'false'],
+    ]);
+
+    $listResponse->assertSuccessful();
+    $listResponse->assertSee($staff->email);
+    $listResponse->assertDontSee($ownerAdmin->email);
+
+    $editResponse = $this->actingAs($regularAdmin, 'backpack')->get("/staff/{$ownerAdmin->id}/edit");
+
+    $editResponse->assertForbidden();
+});
+
 test('restricted sidebar tools are visible only to the configured admin email', function () {
+    config()->set('app.admin_email', 'elvisokohasirifi@gmail.com');
+
     $admin = User::factory()->admin()->create([
         'email' => 'elvisokohasirifi@gmail.com',
     ]);
@@ -924,6 +1103,8 @@ test('restricted sidebar tools are visible only to the configured admin email', 
 });
 
 test('activity buttons are visible only to the configured admin email', function () {
+    config()->set('app.admin_email', 'elvisokohasirifi@gmail.com');
+
     $allowedAdmin = User::factory()->admin()->create([
         'email' => 'elvisokohasirifi@gmail.com',
     ]);

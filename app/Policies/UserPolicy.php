@@ -13,7 +13,8 @@ class UserPolicy
 
     public function view(User $user, User $model): bool
     {
-        return $user->isAdmin() && $model->isStaff();
+        return $user->canManageAllUsers()
+            || ($user->isAdmin() && $model->isStaff());
     }
 
     public function create(User $user): bool
@@ -23,7 +24,8 @@ class UserPolicy
 
     public function update(User $user, User $model): bool
     {
-        return $user->isAdmin() && $model->isStaff();
+        return $user->canManageAllUsers()
+            || ($user->isAdmin() && $model->isStaff());
     }
 
     public function delete(User $user, User $model): bool

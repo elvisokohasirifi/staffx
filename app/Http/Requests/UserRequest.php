@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use App\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,8 +31,7 @@ class UserRequest extends FormRequest
     public function rules(): array
     {
         $userId = $this->route('id');
-
-        return [
+        $rules = [
             'name' => ['required', 'string', 'max:255'],
             'email' => [
                 'required',
@@ -42,6 +42,13 @@ class UserRequest extends FormRequest
                 Rule::unique('users', 'email')->ignore($userId),
             ],
         ];
+
+        if (backpack_user()?->canManageAllUsers() && $this->route('id')) {
+            $rules['password'] = ['nullable', 'string', 'min:8'];
+            $rules['role'] = ['required', Rule::enum(UserRole::class)];
+        }
+
+        return $rules;
     }
 
     /**
@@ -51,6 +58,7 @@ class UserRequest extends FormRequest
     {
         return [
             'email' => 'email address',
+            'role' => 'role',
         ];
     }
 

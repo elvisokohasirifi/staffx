@@ -39,15 +39,21 @@ class UserCrudController extends CrudController
     }
     use UpdateOperation {
         edit as traitEdit;
+        update as traitUpdate;
     }
 
     public function setup(): void
     {
         CRUD::setModel(User::class);
         CRUD::setRoute(trim((string) config('backpack.base.route_prefix'), '/').'/staff');
-        CRUD::setEntityNameStrings('staff member', 'staff');
+        CRUD::setEntityNameStrings(
+            $this->canManageAllUsers() ? 'user' : 'staff member',
+            $this->canManageAllUsers() ? 'users' : 'staff'
+        );
 
-        CRUD::addClause('where', 'role', UserRole::Staff->value);
+        if (! $this->canManageAllUsers()) {
+            CRUD::addClause('where', 'role', UserRole::Staff->value);
+        }
 
         $this->denyAllAccess();
 
@@ -71,6 +77,14 @@ class UserCrudController extends CrudController
 
         CRUD::column('name')->label('Name');
         CRUD::column('email')->label('Email');
+        if ($this->canManageAllUsers()) {
+            CRUD::addColumn([
+                'name' => 'role',
+                'label' => 'Role',
+                'type' => 'text',
+                'value' => fn (User $user): string => $user->role->value,
+            ]);
+        }
         CRUD::column('email_verified_at')->label('Verified At')->type('datetime');
         CRUD::column('created_at')->label('Added On')->type('datetime');
 
@@ -95,7 +109,24 @@ class UserCrudController extends CrudController
 
     protected function setupUpdateOperation(): void
     {
-        $this->setupCreateOperation();
+        CRUD::setValidation(UserRequest::class);
+
+        CRUD::field('name')->label('Name')->type('text');
+        CRUD::field('email')->label('Email')->type('email');
+
+        if ($this->canManageAllUsers()) {
+            CRUD::field('password')
+                ->label('Password')
+                ->type('password')
+                ->hint('Leave blank to keep the current password.');
+            CRUD::field('role')
+                ->label('Role')
+                ->type('select_from_array')
+                ->options([
+                    UserRole::Admin->value => 'Admin',
+                    UserRole::Staff->value => 'Staff',
+                ]);
+        }
     }
 
     protected function setupShowOperation(): void
@@ -171,6 +202,15 @@ class UserCrudController extends CrudController
         return $this->traitShow($id);
     }
 
+    public function update()
+    {
+        if ($this->canManageAllUsers() && blank(request('password'))) {
+            request()->request->remove('password');
+        }
+
+        return $this->traitUpdate();
+    }
+
     public function impersonate(string $id): RedirectResponse
     {
         abort_unless($this->canImpersonateUsers(), 403);
@@ -211,12 +251,17 @@ class UserCrudController extends CrudController
 
     private function canViewActivityButtons(): bool
     {
-        return backpack_user()?->email === 'elvisokohasirifi@gmail.com';
+        return backpack_user()?->hasAdminEmailAccess() ?? false;
     }
 
     private function canImpersonateUsers(): bool
     {
         return backpack_user()?->canImpersonateUsers() ?? false;
+    }
+
+    private function canManageAllUsers(): bool
+    {
+        return backpack_user()?->canManageAllUsers() ?? false;
     }
 
     private function hideActivityButtonsWhenUnauthorized(): void
