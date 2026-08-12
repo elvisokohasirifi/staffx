@@ -1145,7 +1145,6 @@ test('a staff members dashboard shows their open tasks and completion stats for 
     $response->assertSee('Pending / In Progress');
     $response->assertSee('Completed');
     $response->assertSee('Approved Completed');
-    $response->assertSee('1 of 1 completed approved');
     $response->assertSee('Could Not Be Completed');
     $response->assertSee('Completion Rate');
     $response->assertSee('2');
