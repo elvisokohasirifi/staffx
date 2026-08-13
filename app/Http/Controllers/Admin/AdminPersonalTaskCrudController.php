@@ -13,6 +13,7 @@ use Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Backpack\CRUD\app\Library\Widget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -69,6 +70,9 @@ class AdminPersonalTaskCrudController extends CrudController
         CRUD::addButtonFromView('top', 'bulk_create_my_tasks', 'vendor.backpack.crud.buttons.bulk_create_my_tasks', 'end');
         CRUD::addButtonFromView('top', 'bulk_delete_my_tasks', 'vendor.backpack.crud.buttons.bulk_delete_my_tasks', 'end');
         CRUD::addButtonFromView('top', 'bulk_update_my_tasks', 'vendor.backpack.crud.buttons.bulk_update_my_tasks', 'end');
+        CRUD::button('my_task_progress_actions')
+            ->stack('line')
+            ->view('vendor.backpack.crud.buttons.my_task_progress_actions');
 
         CRUD::addColumn([
             'name' => 'title',
@@ -381,7 +385,13 @@ class AdminPersonalTaskCrudController extends CrudController
 
     public function show($id)
     {
-        $this->findPersonalTaskOrFail((string) $id);
+        $task = $this->findPersonalTaskOrFail((string) $id);
+
+        Widget::add([
+            'type' => 'view',
+            'view' => 'admin.personal-tasks.widgets.actions',
+            'task' => $task,
+        ])->to('before_content');
 
         return $this->traitShow($id);
     }
@@ -391,6 +401,47 @@ class AdminPersonalTaskCrudController extends CrudController
         $this->findPersonalTaskOrFail((string) $id);
 
         return $this->traitEdit($id);
+    }
+
+    public function markInProgress(string $id): RedirectResponse
+    {
+        $task = $this->findPersonalTaskOrFail($id);
+
+        if ($task->status !== TaskStatus::Pending) {
+            \Alert::info('This task has already been started.')->flash();
+
+            return redirect()->to(backpack_url("my-tasks/{$task->getKey()}/show"));
+        }
+
+        $task->forceFill([
+            'status' => TaskStatus::InProgress,
+            'started_at' => $task->started_at ?? now(),
+        ])->save();
+
+        \Alert::success('Task marked as in progress.')->flash();
+
+        return redirect()->to(backpack_url("my-tasks/{$task->getKey()}/show"));
+    }
+
+    public function markCompleted(string $id): RedirectResponse
+    {
+        $task = $this->findPersonalTaskOrFail($id);
+
+        if (! in_array($task->status, [TaskStatus::Pending, TaskStatus::InProgress], true)) {
+            \Alert::info('This task has already been completed.')->flash();
+
+            return redirect()->to(backpack_url("my-tasks/{$task->getKey()}/show"));
+        }
+
+        $task->forceFill([
+            'status' => TaskStatus::Completed,
+            'started_at' => $task->started_at ?? now(),
+            'completed_at' => now(),
+        ])->save();
+
+        \Alert::success('Task marked as completed.')->flash();
+
+        return redirect()->to(backpack_url("my-tasks/{$task->getKey()}/show"));
     }
 
     private function addFields(): void

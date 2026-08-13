@@ -27,6 +27,8 @@ Route::group([
     Route::post('my-tasks/bulk-delete', 'AdminPersonalTaskCrudController@bulkDeleteDestroy')->name('my-tasks.bulk-delete-destroy');
     Route::get('my-tasks/bulk-update', 'AdminPersonalTaskCrudController@bulkUpdate')->name('my-tasks.bulk-update');
     Route::post('my-tasks/bulk-update', 'AdminPersonalTaskCrudController@bulkUpdateStore')->name('my-tasks.bulk-update-store');
+    Route::post('my-tasks/{id}/mark-in-progress', 'AdminPersonalTaskCrudController@markInProgress')->name('my-tasks.mark-in-progress');
+    Route::post('my-tasks/{id}/mark-completed', 'AdminPersonalTaskCrudController@markCompleted')->name('my-tasks.mark-completed');
     Route::crud('my-tasks', 'AdminPersonalTaskCrudController');
     Route::get('tasks/bulk-create', 'TaskCrudController@bulkCreate')->name('tasks.bulk-create');
     Route::post('tasks/bulk-create', 'TaskCrudController@bulkStore')->name('tasks.bulk-store');

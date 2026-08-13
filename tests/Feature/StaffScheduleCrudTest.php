@@ -522,6 +522,90 @@ test('the my task show page includes the delete action script', function () {
     $response->assertSee('function deleteEntry(button)', false);
 });
 
+test('the my tasks list search shows progress buttons for personal tasks that can be started or completed', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-progress-buttons@example.com',
+    ]);
+
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'Pending personal task',
+        'status' => TaskStatus::Pending->value,
+    ]);
+    Task::factory()->adminPersonal($admin)->create([
+        'title' => 'In progress personal task',
+        'status' => TaskStatus::InProgress->value,
+        'started_at' => now()->subHour(),
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/my-tasks/search', [
+        'start' => 0,
+        'length' => 20,
+        'search' => ['value' => ''],
+        'datatable_id' => 'crudTable',
+    ], [
+        'X-Requested-With' => 'XMLHttpRequest',
+        'Accept' => 'application/json',
+    ]);
+
+    $response->assertOk();
+    $response->assertSee('mark-in-progress');
+    $response->assertSee('mark-completed');
+    $response->assertSee('Start');
+    $response->assertSee('Complete');
+});
+
+test('an admin can mark a pending personal task as in progress from my tasks', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-progress-start@example.com',
+    ]);
+    $task = Task::factory()->adminPersonal($admin)->create([
+        'status' => TaskStatus::Pending->value,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post("/my-tasks/{$task->id}/mark-in-progress");
+
+    $response->assertRedirect("/my-tasks/{$task->id}/show");
+
+    $task->refresh();
+
+    expect($task->status)->toBe(TaskStatus::InProgress);
+    expect($task->started_at)->not->toBeNull();
+});
+
+test('an admin can mark an in-progress personal task as completed from my tasks', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-progress-complete@example.com',
+    ]);
+    $task = Task::factory()->adminPersonal($admin)->create([
+        'status' => TaskStatus::InProgress->value,
+        'started_at' => now()->subMinutes(30),
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post("/my-tasks/{$task->id}/mark-completed");
+
+    $response->assertRedirect("/my-tasks/{$task->id}/show");
+
+    $task->refresh();
+
+    expect($task->status)->toBe(TaskStatus::Completed);
+    expect($task->completed_at)->not->toBeNull();
+});
+
+test('the my task show page includes personal task action buttons when the task is still open', function () {
+    $admin = User::factory()->admin()->create([
+        'email' => 'personal-show-actions@example.com',
+    ]);
+    $task = Task::factory()->adminPersonal($admin)->create([
+        'status' => TaskStatus::Pending->value,
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->get("/my-tasks/{$task->id}/show");
+
+    $response->assertSuccessful();
+    $response->assertSeeText('Task Actions');
+    $response->assertSee('Mark as In Progress');
+});
+
 test('the my tasks page shows all-time personal task cards and status distribution', function () {
     $admin = User::factory()->admin()->create([
         'email' => 'personal-overview-admin@example.com',
