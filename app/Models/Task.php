@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
     'outcome_notes',
     'admin_id',
     'assignee_id',
+    'recurring_task_id',
 ])]
 class Task extends Model
 {
@@ -163,6 +164,11 @@ class Task extends Model
     public function remarks(): HasMany
     {
         return $this->hasMany(TaskRemark::class);
+    }
+
+    public function recurringTask(): BelongsTo
+    {
+        return $this->belongsTo(RecurringTask::class);
     }
 
     private static function normalizeScheduledTime(string $value): string

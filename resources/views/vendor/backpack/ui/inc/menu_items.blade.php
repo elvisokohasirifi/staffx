@@ -3,6 +3,7 @@
 <x-backpack::menu-item title="Tasks" icon="la la-calendar-check" :link="backpack_url('tasks')" />
 @if(backpack_user()?->isAdmin())
     <x-backpack::menu-item title="My Tasks" icon="la la-user-check" :link="backpack_url('my-tasks')" />
+    <x-backpack::menu-item title="Recurring Tasks" icon="la la-sync" :link="backpack_url('recurring-tasks')" />
     <x-backpack::menu-item title="Email Notifications" icon="la la-envelope" :link="backpack_url('email-notifications')" />
     <li class="nav-item">
         <a class="nav-link" href="{{ route('tasks.index', ['status' => \App\TaskStatus::Completed->value, 'approval_status' => 'pending']) }}">

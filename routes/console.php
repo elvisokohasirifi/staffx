@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\GenerateRecurringTasksJob;
 use App\Jobs\RunDatabaseBackupJob;
 use App\Jobs\SendPendingTaskRemindersJob;
 use Illuminate\Foundation\Inspiring;
@@ -14,6 +15,12 @@ Schedule::job(new RunDatabaseBackupJob)
     ->name('daily-database-backup')
     ->timezone(config('app.timezone'))
     ->dailyAt('01:00')
+    ->withoutOverlapping();
+
+Schedule::job(new GenerateRecurringTasksJob)
+    ->name('generate-recurring-tasks')
+    ->timezone(config('app.timezone'))
+    ->dailyAt('00:05')
     ->withoutOverlapping();
 
 Schedule::job(new SendPendingTaskRemindersJob)

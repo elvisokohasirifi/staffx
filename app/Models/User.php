@@ -78,6 +78,16 @@ class User extends Authenticatable
         return $this->hasMany(Task::class, 'assignee_id');
     }
 
+    public function createdRecurringTasks(): HasMany
+    {
+        return $this->hasMany(RecurringTask::class, 'admin_id');
+    }
+
+    public function assignedRecurringTasks(): HasMany
+    {
+        return $this->hasMany(RecurringTask::class, 'assignee_id');
+    }
+
     public function taskRemarks(): HasMany
     {
         return $this->hasMany(TaskRemark::class, 'author_id');
