@@ -189,7 +189,7 @@
                                     <th>Task</th>
                                     <th>Status</th>
                                     <th>Remarks</th>
-                                    <th></th>
+                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -206,7 +206,25 @@
                                         <td>{{ \App\TaskStatus::options()[$task->status->value] ?? $task->status->value }}</td>
                                         <td>{{ $task->remarks_count }}</td>
                                         <td class="text-end">
-                                            <a href="{{ backpack_url("tasks/{$task->getKey()}/show") }}" class="btn btn-sm btn-outline-primary">Open Task</a>
+                                            <div class="d-inline-flex flex-wrap justify-content-end gap-2">
+                                                @if($task->status === \App\TaskStatus::Pending)
+                                                    <form method="POST" action="{{ route('tasks.mark-in-progress', $task->getKey()) }}" class="m-0">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary" bp-button="dashboard-task-mark-in-progress">
+                                                            Start
+                                                        </button>
+                                                    </form>
+                                                @elseif($task->status === \App\TaskStatus::InProgress)
+                                                    <form method="POST" action="{{ route('tasks.mark-completed', $task->getKey()) }}" class="m-0">
+                                                        @csrf
+                                                        <button type="submit" class="btn btn-sm btn-success" bp-button="dashboard-task-mark-completed">
+                                                            Complete
+                                                        </button>
+                                                    </form>
+                                                @endif
+
+                                                <a href="{{ backpack_url("tasks/{$task->getKey()}/show") }}" class="btn btn-sm btn-outline-primary">Open Task</a>
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach

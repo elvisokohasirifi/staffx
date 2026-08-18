@@ -1770,7 +1770,7 @@ test('a staff members dashboard shows their open tasks and completion stats for 
         'status' => TaskStatus::Pending->value,
     ]);
 
-    Task::factory()->create([
+    $inProgressTask = Task::factory()->create([
         'admin_id' => $admin->id,
         'assignee_id' => $staff->id,
         'title' => 'In progress task for staff',
@@ -1826,8 +1826,12 @@ test('a staff members dashboard shows their open tasks and completion stats for 
     $response->assertSee('25.0%');
     $response->assertSeeText('My Pending & In Progress Tasks');
     $response->assertSee($pendingTask->title);
-    $response->assertSee('In progress task for staff');
+    $response->assertSee($inProgressTask->title);
     $response->assertSee('In Progress');
+    $response->assertSee('bp-button="dashboard-task-mark-in-progress"', false);
+    $response->assertSee('bp-button="dashboard-task-mark-completed"', false);
+    $response->assertSee("tasks/{$pendingTask->id}/mark-in-progress", false);
+    $response->assertSee("tasks/{$inProgressTask->id}/mark-completed", false);
     $response->assertSee('Tomorrow pending task for staff');
     $response->assertDontSee('Completed task for staff');
     $response->assertDontSee('Blocked task for staff');
