@@ -8,6 +8,7 @@ use App\Http\Requests\RecurringTaskRequest;
 use App\Models\RecurringTask;
 use App\Models\User;
 use App\RecurringTaskPattern;
+use App\UserRole;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
@@ -16,6 +17,13 @@ use Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 /**
  * @property-read CrudPanel $crud
@@ -58,6 +66,7 @@ class RecurringTaskCrudController extends CrudController
         CRUD::setListView('admin.recurring-tasks.list');
         CRUD::setDefaultPageLength(20);
         CRUD::setPageLengthMenu([20, 50, 100]);
+        CRUD::addButtonFromView('top', 'bulk_create_recurring_tasks', 'vendor.backpack.crud.buttons.bulk_create_recurring_tasks', 'end');
 
         CRUD::addColumn([
             'name' => 'title',
@@ -186,6 +195,76 @@ class RecurringTaskCrudController extends CrudController
         ]);
 
         return $this->traitUpdate();
+    }
+
+    public function bulkCreate(): View
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        return view('admin.recurring-tasks.bulk-create', [
+            'staffMembers' => User::query()->staff()->orderBy('name')->get(),
+            'repeatPatternOptions' => RecurringTaskPattern::options(),
+        ]);
+    }
+
+    public function bulkStore(Request $request): RedirectResponse
+    {
+        abort_unless(backpack_user()?->isAdmin(), Response::HTTP_FORBIDDEN);
+
+        $validated = $request->validate([
+            'scheduled_time' => ['nullable', 'date_format:H:i'],
+            'task_lines' => ['required', 'string'],
+            'repeat_pattern' => ['required', Rule::enum(RecurringTaskPattern::class)],
+            'is_active' => ['nullable', 'boolean'],
+            'assignee_id' => [
+                'required',
+                'uuid',
+                Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+            ],
+        ], [
+            'task_lines.required' => 'Please enter at least one recurring task title.',
+        ], [
+            'assignee_id' => 'staff member',
+            'scheduled_time' => 'scheduled time',
+            'repeat_pattern' => 'repeat pattern',
+            'task_lines' => 'task list',
+        ]);
+
+        $taskTitles = collect(preg_split('/\r\n|\r|\n/', (string) $validated['task_lines']))
+            ->map(fn (string $title): string => trim($title))
+            ->filter()
+            ->values();
+
+        if ($taskTitles->isEmpty()) {
+            return back()
+                ->withErrors(['task_lines' => 'Please enter at least one recurring task title.'])
+                ->withInput();
+        }
+
+        /** @var Collection<int, RecurringTask> $createdRecurringTasks */
+        $createdRecurringTasks = DB::transaction(function () use ($taskTitles, $validated): Collection {
+            $createdRecurringTasks = collect();
+
+            foreach ($taskTitles as $title) {
+                $createdRecurringTasks->push(RecurringTask::query()->create([
+                    'title' => $title,
+                    'scheduled_time' => $validated['scheduled_time'] ?? '23:59',
+                    'repeat_pattern' => $validated['repeat_pattern'],
+                    'is_active' => filter_var($validated['is_active'] ?? true, FILTER_VALIDATE_BOOL),
+                    'admin_id' => backpack_user()->getKey(),
+                    'assignee_id' => $validated['assignee_id'],
+                ]));
+            }
+
+            return $createdRecurringTasks;
+        });
+
+        $createdTasks = $this->generateRecurringTasks->execute(today(), $createdRecurringTasks);
+        $this->sendTaskNotifications->sendAssigned($createdTasks);
+
+        \Alert::success($createdRecurringTasks->count().' recurring task(s) were created successfully.')->flash();
+
+        return redirect()->to(backpack_url('recurring-tasks'));
     }
 
     private function addFields(): void

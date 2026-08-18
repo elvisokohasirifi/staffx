@@ -20,6 +20,8 @@ Route::group([
     Route::post('staff/{id}/impersonate', 'UserCrudController@impersonate')->name('staff.impersonate');
     Route::post('stop-impersonating', 'UserCrudController@stopImpersonating')->name('staff.stop-impersonating');
     Route::crud('email-notifications', 'EmailNotificationCrudController');
+    Route::get('recurring-tasks/bulk-create', 'RecurringTaskCrudController@bulkCreate')->name('recurring-tasks.bulk-create');
+    Route::post('recurring-tasks/bulk-create', 'RecurringTaskCrudController@bulkStore')->name('recurring-tasks.bulk-store');
     Route::crud('recurring-tasks', 'RecurringTaskCrudController');
     Route::get('summary', 'SummaryController@index')->name('summary.index');
     Route::get('my-tasks/bulk-create', 'AdminPersonalTaskCrudController@bulkCreate')->name('my-tasks.bulk-create');

@@ -42,7 +42,7 @@ test('an admin can create a recurring task and it immediately assigns todays tas
 
     expect($generatedTask)->not->toBeNull();
     expect($generatedTask?->title)->toBe('Morning devotion follow-up');
-    expect($generatedTask?->scheduled_for?->toDateString())->toBe('2026-08-13');
+    expect($generatedTask?->scheduled_for?->toDateString())->toBe(today()->toDateString());
     expect($generatedTask?->status)->toBe(TaskStatus::Pending);
 
     Notification::assertSentTo($staff, TasksAssignedNotification::class, function (TasksAssignedNotification $notification): bool {
@@ -191,4 +191,55 @@ test('the recurring task list shows filters and applies them to search results',
     $searchResponse->assertOk();
     $searchResponse->assertSee($includedRecurringTask->title);
     $searchResponse->assertDontSee('Zoe weekend check-in');
+});
+
+test('an admin can bulk create recurring tasks for one staff member', function () {
+    Notification::fake();
+
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create([
+        'name' => 'Recurring Staff',
+        'email' => 'recurring-staff@example.com',
+    ]);
+
+    $response = $this->actingAs($admin, 'backpack')->post('/recurring-tasks/bulk-create', [
+        'assignee_id' => $staff->id,
+        'scheduled_time' => '07:45',
+        'repeat_pattern' => RecurringTaskPattern::Weekdays->value,
+        'is_active' => '1',
+        'task_lines' => "Morning attendance\nSend daily reminder\nPrepare follow-up sheet",
+    ]);
+
+    $response->assertRedirect('/recurring-tasks');
+
+    $recurringTasks = RecurringTask::query()
+        ->where('admin_id', $admin->id)
+        ->where('assignee_id', $staff->id)
+        ->orderBy('title')
+        ->get();
+
+    expect($recurringTasks)->toHaveCount(3);
+    expect($recurringTasks->pluck('title')->all())->toBe([
+        'Morning attendance',
+        'Prepare follow-up sheet',
+        'Send daily reminder',
+    ]);
+    expect($recurringTasks->every(fn (RecurringTask $recurringTask): bool => $recurringTask->scheduled_time === '07:45:00'))->toBeTrue();
+    expect($recurringTasks->every(fn (RecurringTask $recurringTask): bool => $recurringTask->repeat_pattern === RecurringTaskPattern::Weekdays))->toBeTrue();
+
+    $generatedTasks = Task::query()
+        ->whereIn('recurring_task_id', $recurringTasks->pluck('id'))
+        ->orderBy('title')
+        ->get();
+
+    expect($generatedTasks)->toHaveCount(3);
+    expect($generatedTasks->pluck('title')->all())->toBe([
+        'Morning attendance',
+        'Prepare follow-up sheet',
+        'Send daily reminder',
+    ]);
+
+    Notification::assertSentTo($staff, TasksAssignedNotification::class, function (TasksAssignedNotification $notification): bool {
+        return count($notification->tasks) === 3;
+    });
 });
