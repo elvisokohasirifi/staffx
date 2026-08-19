@@ -44,17 +44,29 @@
                         </div>
 
                         <div class="mb-3">
-                            <label for="repeat_pattern" class="form-label">Repeat Pattern</label>
-                            <select id="repeat_pattern" name="repeat_pattern" class="form-select @error('repeat_pattern') is-invalid @enderror" required>
-                                @foreach($repeatPatternOptions as $value => $label)
-                                    <option value="{{ $value }}" @selected(old('repeat_pattern', \App\RecurringTaskPattern::Weekdays->value) === $value)>
-                                        {{ $label }}
-                                    </option>
+                            <label class="form-label d-block">Recurring Days</label>
+                            <div class="row g-2">
+                                @foreach($recurringDayOptions as $value => $label)
+                                    <div class="col-sm-6 col-lg-4">
+                                        <div class="form-check border rounded px-3 py-2 h-100">
+                                            <input
+                                                id="recurring_days_{{ $value }}"
+                                                type="checkbox"
+                                                name="recurring_days[]"
+                                                value="{{ $value }}"
+                                                class="form-check-input @if($errors->has('recurring_days') || $errors->has('recurring_days.*')) is-invalid @endif"
+                                                @checked(in_array($value, old('recurring_days', \App\Models\RecurringTask::defaultRecurringDays()), true))
+                                            >
+                                            <label for="recurring_days_{{ $value }}" class="form-check-label">{{ $label }}</label>
+                                        </div>
+                                    </div>
                                 @endforeach
-                            </select>
-                            @error('repeat_pattern')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                            </div>
+                            @if($errors->has('recurring_days'))
+                                <div class="invalid-feedback d-block">{{ $errors->first('recurring_days') }}</div>
+                            @elseif($errors->has('recurring_days.*'))
+                                <div class="invalid-feedback d-block">{{ $errors->first('recurring_days.*') }}</div>
+                            @endif
                         </div>
 
                         <div class="form-check mb-3">

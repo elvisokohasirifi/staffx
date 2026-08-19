@@ -7,7 +7,6 @@ use App\Actions\Tasks\SendTaskNotificationsAction;
 use App\Http\Requests\RecurringTaskRequest;
 use App\Models\RecurringTask;
 use App\Models\User;
-use App\RecurringTaskPattern;
 use App\UserRole;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
@@ -92,10 +91,13 @@ class RecurringTaskCrudController extends CrudController
             'value' => fn (RecurringTask $recurringTask): string => $recurringTask->scheduledTimeLabel(),
         ]);
         CRUD::addColumn([
-            'name' => 'repeat_pattern_label',
-            'label' => 'Repeat Pattern',
+            'name' => 'recurring_days_label',
+            'label' => 'Recurring Days',
             'type' => 'text',
-            'value' => fn (RecurringTask $recurringTask): string => RecurringTaskPattern::options()[$recurringTask->repeat_pattern->value] ?? $recurringTask->repeat_pattern->value,
+            'value' => fn (RecurringTask $recurringTask): string => $recurringTask->recurringDaysLabel(),
+            'wrapper' => [
+                'style' => 'white-space: normal; word-break: break-word; min-width: 220px;',
+            ],
         ]);
         CRUD::column('is_active')->label('Active')->type('boolean');
         CRUD::addColumn([
@@ -147,10 +149,13 @@ class RecurringTaskCrudController extends CrudController
             'value' => fn (RecurringTask $recurringTask): string => $recurringTask->scheduledTimeLabel(),
         ]);
         CRUD::addColumn([
-            'name' => 'repeat_pattern_label',
-            'label' => 'Repeat Pattern',
+            'name' => 'recurring_days_label',
+            'label' => 'Recurring Days',
             'type' => 'text',
-            'value' => fn (RecurringTask $recurringTask): string => RecurringTaskPattern::options()[$recurringTask->repeat_pattern->value] ?? $recurringTask->repeat_pattern->value,
+            'value' => fn (RecurringTask $recurringTask): string => $recurringTask->recurringDaysLabel(),
+            'wrapper' => [
+                'style' => 'white-space: normal; word-break: break-word;',
+            ],
         ]);
         CRUD::column('is_active')->label('Active')->type('boolean');
         CRUD::addColumn([
@@ -203,7 +208,7 @@ class RecurringTaskCrudController extends CrudController
 
         return view('admin.recurring-tasks.bulk-create', [
             'staffMembers' => User::query()->staff()->orderBy('name')->get(),
-            'repeatPatternOptions' => RecurringTaskPattern::options(),
+            'recurringDayOptions' => RecurringTask::recurringDayOptions(),
         ]);
     }
 
@@ -214,7 +219,8 @@ class RecurringTaskCrudController extends CrudController
         $validated = $request->validate([
             'scheduled_time' => ['nullable', 'date_format:H:i'],
             'task_lines' => ['required', 'string'],
-            'repeat_pattern' => ['required', Rule::enum(RecurringTaskPattern::class)],
+            'recurring_days' => ['required', 'array', 'min:1'],
+            'recurring_days.*' => ['required', 'string', Rule::in(array_keys(RecurringTask::recurringDayOptions()))],
             'is_active' => ['nullable', 'boolean'],
             'assignee_id' => [
                 'required',
@@ -226,7 +232,8 @@ class RecurringTaskCrudController extends CrudController
         ], [
             'assignee_id' => 'staff member',
             'scheduled_time' => 'scheduled time',
-            'repeat_pattern' => 'repeat pattern',
+            'recurring_days' => 'recurring days',
+            'recurring_days.*' => 'recurring day',
             'task_lines' => 'task list',
         ]);
 
@@ -249,7 +256,7 @@ class RecurringTaskCrudController extends CrudController
                 $createdRecurringTasks->push(RecurringTask::query()->create([
                     'title' => $title,
                     'scheduled_time' => $validated['scheduled_time'] ?? '23:59',
-                    'repeat_pattern' => $validated['repeat_pattern'],
+                    'recurring_days' => $validated['recurring_days'],
                     'is_active' => filter_var($validated['is_active'] ?? true, FILTER_VALIDATE_BOOL),
                     'admin_id' => backpack_user()->getKey(),
                     'assignee_id' => $validated['assignee_id'],
@@ -275,14 +282,18 @@ class RecurringTaskCrudController extends CrudController
             fn ($query) => $query->staff()->orderBy('name')->get()
         );
         CRUD::field('scheduled_time')->label('Scheduled Time')->type('time')->default('23:59')->attributes(['step' => 60]);
-        CRUD::field('repeat_pattern')->label('Repeat Pattern')->type('select_from_array')->options(RecurringTaskPattern::options())->default(RecurringTaskPattern::Weekdays->value);
+        CRUD::field('recurring_days')
+            ->label('Recurring Days')
+            ->type('recurring_days_checklist')
+            ->options(RecurringTask::recurringDayOptions())
+            ->default(RecurringTask::defaultRecurringDays());
         CRUD::field('is_active')->label('Active')->type('checkbox')->default(true);
     }
 
     private function applyFilters(): void
     {
         $staffId = request()->query('staff_id');
-        $repeatPattern = request()->query('repeat_pattern');
+        $recurringDay = request()->query('recurring_day');
         $active = request()->query('active');
 
         if (is_string($staffId) && $staffId !== '') {
@@ -296,8 +307,8 @@ class RecurringTaskCrudController extends CrudController
             }
         }
 
-        if (is_string($repeatPattern) && array_key_exists($repeatPattern, RecurringTaskPattern::options())) {
-            CRUD::addClause('where', 'repeat_pattern', $repeatPattern);
+        if (is_string($recurringDay) && array_key_exists($recurringDay, RecurringTask::recurringDayOptions())) {
+            CRUD::addClause('whereJsonContains', 'recurring_days', $recurringDay);
         }
 
         if ($active === '1') {

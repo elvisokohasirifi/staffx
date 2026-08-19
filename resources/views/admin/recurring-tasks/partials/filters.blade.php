@@ -1,9 +1,10 @@
 @php
     $hasActiveFilters = filled(request()->query('staff_id'))
-        || filled(request()->query('repeat_pattern'))
+        || filled(request()->query('recurring_day'))
         || request()->query('active') !== null;
 
     $staffMembers = \App\Models\User::query()->staff()->orderBy('name')->get();
+    $recurringDayOptions = \App\Models\RecurringTask::recurringDayOptions();
 @endphp
 
 <div class="mb-3">
@@ -36,11 +37,11 @@
                     </select>
                 </div>
                 <div class="col-md-4">
-                    <label for="repeat_pattern" class="form-label">Repeat Pattern</label>
-                    <select name="repeat_pattern" id="repeat_pattern" class="form-select">
-                        <option value="">All Patterns</option>
-                        @foreach (\App\RecurringTaskPattern::options() as $value => $label)
-                            <option value="{{ $value }}" @selected(request()->query('repeat_pattern') === $value)>
+                    <label for="recurring_day" class="form-label">Recurring Day</label>
+                    <select name="recurring_day" id="recurring_day" class="form-select">
+                        <option value="">All Days</option>
+                        @foreach ($recurringDayOptions as $value => $label)
+                            <option value="{{ $value }}" @selected(request()->query('recurring_day') === $value)>
                                 {{ $label }}
                             </option>
                         @endforeach

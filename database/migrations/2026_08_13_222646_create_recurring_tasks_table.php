@@ -16,12 +16,7 @@ return new class extends Migration
             $table->string('title');
             $table->longText('description')->nullable();
             $table->time('scheduled_time')->default('23:59:00');
-            $table->enum('repeat_pattern', [
-                'weekdays',
-                'weekdays_and_saturday',
-                'weekdays_and_sunday',
-                'everyday',
-            ])->default('weekdays')->index();
+            $table->json('recurring_days');
             $table->boolean('is_active')->default(true)->index();
             $table->foreignUuid('admin_id')->constrained('users')->cascadeOnUpdate()->restrictOnDelete();
             $table->foreignUuid('assignee_id')->constrained('users')->cascadeOnUpdate()->restrictOnDelete();

@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests;
 
-use App\RecurringTaskPattern;
+use App\Models\RecurringTask;
 use App\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,7 +28,8 @@ class RecurringTaskRequest extends FormRequest
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'scheduled_time' => ['nullable', 'date_format:H:i'],
-            'repeat_pattern' => ['required', Rule::enum(RecurringTaskPattern::class)],
+            'recurring_days' => ['required', 'array', 'min:1'],
+            'recurring_days.*' => ['required', 'string', Rule::in(array_keys(RecurringTask::recurringDayOptions()))],
             'is_active' => ['sometimes', 'boolean'],
             'assignee_id' => [
                 'required',
@@ -46,7 +47,8 @@ class RecurringTaskRequest extends FormRequest
         return [
             'assignee_id' => 'staff member',
             'scheduled_time' => 'scheduled time',
-            'repeat_pattern' => 'repeat pattern',
+            'recurring_days' => 'recurring days',
+            'recurring_days.*' => 'recurring day',
         ];
     }
 }

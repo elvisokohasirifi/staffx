@@ -31,7 +31,7 @@ class GenerateRecurringTasksAction
 
         DB::transaction(function () use ($createdTasks, $recurringTasks, &$sortOrders, $targetDate): void {
             foreach ($recurringTasks as $recurringTask) {
-                if (! $recurringTask->is_active || ! $recurringTask->repeat_pattern->appliesToDate($targetDate)) {
+                if (! $recurringTask->is_active || ! $recurringTask->recursOnDate($targetDate)) {
                     continue;
                 }
 

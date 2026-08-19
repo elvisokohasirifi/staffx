@@ -3,8 +3,8 @@
 namespace App\Models;
 
 use App\Models\Traits\LogsActivity;
-use App\RecurringTaskPattern;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
+use Carbon\CarbonInterface;
 use Database\Factories\RecurringTaskFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -19,7 +19,7 @@ use Illuminate\Support\Carbon;
     'title',
     'description',
     'scheduled_time',
-    'repeat_pattern',
+    'recurring_days',
     'is_active',
     'admin_id',
     'assignee_id',
@@ -39,10 +39,34 @@ class RecurringTask extends Model
     /**
      * @return array<string, string>
      */
+    public static function recurringDayOptions(): array
+    {
+        return [
+            'monday' => 'Monday',
+            'tuesday' => 'Tuesday',
+            'wednesday' => 'Wednesday',
+            'thursday' => 'Thursday',
+            'friday' => 'Friday',
+            'saturday' => 'Saturday',
+            'sunday' => 'Sunday',
+        ];
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public static function defaultRecurringDays(): array
+    {
+        return ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
+    }
+
+    /**
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
-            'repeat_pattern' => RecurringTaskPattern::class,
+            'recurring_days' => 'array',
             'is_active' => 'boolean',
         ];
     }
@@ -55,6 +79,8 @@ class RecurringTask extends Model
             } else {
                 $recurringTask->scheduled_time = self::normalizeScheduledTime((string) $recurringTask->scheduled_time);
             }
+
+            $recurringTask->recurring_days = self::normalizeRecurringDays((array) ($recurringTask->recurring_days ?? []));
         });
     }
 
@@ -70,6 +96,20 @@ class RecurringTask extends Model
         } catch (\Throwable) {
             return (string) $this->scheduled_time;
         }
+    }
+
+    public function recurringDaysLabel(): string
+    {
+        $options = self::recurringDayOptions();
+
+        return collect((array) $this->recurring_days)
+            ->map(fn (string $day): string => $options[$day] ?? ucfirst($day))
+            ->implode(', ');
+    }
+
+    public function recursOnDate(CarbonInterface $date): bool
+    {
+        return in_array(strtolower($date->format('l')), (array) $this->recurring_days, true);
     }
 
     public function admin(): BelongsTo
@@ -94,5 +134,21 @@ class RecurringTask extends Model
         } catch (\Throwable) {
             return Carbon::createFromFormat('H:i', $value)->format('H:i:s');
         }
+    }
+
+    /**
+     * @param  array<int|string, mixed>  $days
+     * @return array<int, string>
+     */
+    private static function normalizeRecurringDays(array $days): array
+    {
+        $orderedDays = array_keys(self::recurringDayOptions());
+
+        return collect($days)
+            ->filter(fn (mixed $day): bool => is_string($day) && array_key_exists($day, self::recurringDayOptions()))
+            ->unique()
+            ->sortBy(fn (string $day): int => array_search($day, $orderedDays, true))
+            ->values()
+            ->all();
     }
 }
