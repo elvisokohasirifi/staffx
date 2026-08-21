@@ -821,6 +821,49 @@ test('an admin can open the bulk update page from tasks', function () {
     $bulkUpdateResponse->assertSee('Updates To Apply');
 });
 
+test('an admin can open the bulk approve completed tasks flow from tasks', function () {
+    $admin = User::factory()->admin()->create();
+    $staff = User::factory()->staff()->create();
+
+    $pendingApprovalTask = Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Awaiting bulk approval',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => false,
+    ]);
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Already approved task',
+        'status' => TaskStatus::Completed->value,
+        'approved_as_completed' => true,
+    ]);
+    Task::factory()->create([
+        'admin_id' => $admin->id,
+        'assignee_id' => $staff->id,
+        'title' => 'Pending task',
+        'status' => TaskStatus::Pending->value,
+        'approved_as_completed' => false,
+    ]);
+
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+
+    $tasksPageResponse->assertSuccessful();
+    $tasksPageResponse->assertSee('Bulk Approve Completed Tasks');
+    $tasksPageResponse->assertSee('filter_status=completed&amp;filter_approval_status=pending', false);
+
+    $bulkApprovePageResponse = $this->actingAs($admin, 'backpack')->get('/tasks/bulk-update?filter_status=completed&filter_approval_status=pending');
+
+    $bulkApprovePageResponse->assertSuccessful();
+    $bulkApprovePageResponse->assertSee('Bulk Update Tasks');
+    $bulkApprovePageResponse->assertSee('Awaiting bulk approval');
+    $bulkApprovePageResponse->assertDontSee('Already approved task');
+    $bulkApprovePageResponse->assertDontSee('Pending task');
+    $bulkApprovePageResponse->assertSee('value="completed" selected', false);
+    $bulkApprovePageResponse->assertSee('value="pending" selected', false);
+});
+
 test('an admin can open the bulk delete page and delete selected tasks', function () {
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();

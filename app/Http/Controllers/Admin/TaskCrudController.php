@@ -100,6 +100,7 @@ class TaskCrudController extends CrudController
             CRUD::addButtonFromView('top', 'bulk_create_tasks', 'vendor.backpack.crud.buttons.bulk_create_tasks', 'end');
             CRUD::addButtonFromView('top', 'bulk_delete_tasks', 'vendor.backpack.crud.buttons.bulk_delete_tasks', 'end');
             CRUD::addButtonFromView('top', 'bulk_update_tasks', 'vendor.backpack.crud.buttons.bulk_update_tasks', 'end');
+            CRUD::addButtonFromView('top', 'bulk_approve_completed_tasks', 'vendor.backpack.crud.buttons.bulk_approve_completed_tasks', 'end');
             if (request()->query('approval_status') === 'pending') {
                 CRUD::addButtonFromView('top', 'approve_all_completed_tasks', 'vendor.backpack.crud.buttons.approve_all_completed_tasks', 'end');
             }
