@@ -2003,3 +2003,39 @@ test('staff users cannot access the summary page', function () {
 
     $response->assertForbidden();
 });
+
+test('the help page shows staff only the features they can use', function () {
+    $staff = User::factory()->staff()->create();
+
+    $response = $this->actingAs($staff, 'backpack')->get('/help');
+
+    $response->assertSuccessful();
+    $response->assertSee('Help Center');
+    $response->assertSee('features available to you as a staff member');
+    $response->assertSee('Start');
+    $response->assertSee('Only your own tasks are visible.');
+    $response->assertDontSee('Approvals and Bulk Changes');
+    $response->assertDontSee('Recurring Tasks');
+    $response->assertDontSee('Restricted Administrator Tools');
+});
+
+test('the help page shows admins their management features and restricts owner tools', function () {
+    config()->set('app.admin_email', 'owner@example.com');
+
+    $admin = User::factory()->admin()->create(['email' => 'admin@example.com']);
+    $owner = User::factory()->admin()->create(['email' => 'owner@example.com']);
+
+    $adminResponse = $this->actingAs($admin, 'backpack')->get('/help');
+
+    $adminResponse->assertSuccessful();
+    $adminResponse->assertSee('Approvals and Bulk Changes');
+    $adminResponse->assertSee('Recurring Tasks');
+    $adminResponse->assertSee('Staff Accounts');
+    $adminResponse->assertDontSee('Restricted Administrator Tools');
+
+    $ownerResponse = $this->actingAs($owner, 'backpack')->get('/help');
+
+    $ownerResponse->assertSuccessful();
+    $ownerResponse->assertSee('Restricted Administrator Tools');
+    $ownerResponse->assertSee('Activity Logs');
+});

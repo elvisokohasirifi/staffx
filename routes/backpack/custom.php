@@ -24,6 +24,7 @@ Route::group([
     Route::post('recurring-tasks/bulk-create', 'RecurringTaskCrudController@bulkStore')->name('recurring-tasks.bulk-store');
     Route::crud('recurring-tasks', 'RecurringTaskCrudController');
     Route::get('summary', 'SummaryController@index')->name('summary.index');
+    Route::get('help', 'HelpController@index')->name('help.index');
     Route::get('my-tasks/bulk-create', 'AdminPersonalTaskCrudController@bulkCreate')->name('my-tasks.bulk-create');
     Route::post('my-tasks/bulk-create', 'AdminPersonalTaskCrudController@bulkStore')->name('my-tasks.bulk-store');
     Route::get('my-tasks/bulk-delete', 'AdminPersonalTaskCrudController@bulkDelete')->name('my-tasks.bulk-delete');

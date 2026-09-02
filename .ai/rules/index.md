@@ -5,3 +5,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | Applies to | Rule file |
 | --- | --- |
 | app/Http/Controllers/Admin/TaskCrudController.php | .ai/rules/admin.md |
+| resources/views/admin/help/** | .ai/rules/help.md |

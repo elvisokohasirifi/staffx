@@ -22,3 +22,4 @@
         <x-backpack::menu-item title="Activity Logs" icon="la la-stream" :link="backpack_url('activity-log')" />
     @endif
 @endif
+<x-backpack::menu-item title="Help" icon="la la-question-circle" :link="route('help.index')" />
