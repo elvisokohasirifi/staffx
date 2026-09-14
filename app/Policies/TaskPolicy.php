@@ -14,7 +14,8 @@ class TaskPolicy
 
     public function view(User $user, Task $task): bool
     {
-        return $user->isAdmin() || $task->assignee_id === $user->getKey();
+        return $user->isInSameOrganizationAs($task)
+            && ($user->isAdmin() || $task->assignee_id === $user->getKey());
     }
 
     public function create(User $user): bool
@@ -24,12 +25,13 @@ class TaskPolicy
 
     public function update(User $user, Task $task): bool
     {
-        return $user->isAdmin() || $task->assignee_id === $user->getKey();
+        return $user->isInSameOrganizationAs($task)
+            && ($user->isAdmin() || $task->assignee_id === $user->getKey());
     }
 
     public function delete(User $user, Task $task): bool
     {
-        return $user->isAdmin();
+        return $user->isInSameOrganizationAs($task) && $user->isAdmin();
     }
 
     public function restore(User $user, Task $task): bool

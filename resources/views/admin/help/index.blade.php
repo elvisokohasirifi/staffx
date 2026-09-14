@@ -143,6 +143,10 @@
                             </div>
                             <div class="card-body">
                                 <ul class="mb-0">
+                                    @if (config('app.is_tenant') && $user->isOrganizationOwner())
+                                        <li>Use Departments to create departments and select one or more department admins for each one.</li>
+                                        <li>Assign each team member to a department from their Staff profile, then filter Summary by a department or keep All Staff selected.</li>
+                                    @endif
                                     <li>Open Summary to see task totals, approved completion rates per staff member, and a status distribution chart.</li>
                                     <li>Apply a date range to focus the summary. With no dates selected, it shows all time.</li>
                                     <li>Open Email Notifications to send a message to all staff, all admins, or selected individual users. The sent-notification list records recipients and send time.</li>
@@ -161,12 +165,18 @@
                             <div class="card-header">
                                 <h4 class="mb-0"><i class="la la-users me-2"></i>Staff Accounts</h4>
                             </div>
-                            <div class="card-body">
-                                <ul class="mb-0">
+                        <div class="card-body">
+                            <ul class="mb-0">
                                     <li>Open Staff to add staff members with their name and email address.</li>
-                                    <li>A random password is created automatically and the staff member receives a password-reset email to choose their own password.</li>
-                                    <li>Open View Tasks next to a staff member to see that person's assigned work.</li>
-                                    <li>Use Impersonate to temporarily view the app as another user. Select Stop Impersonating in the sidebar to return to your own account.</li>
+                                    @if ($user->isOrganizationOwner())
+                                        <li>As the organization owner, you can also add other admins to help manage your organization's staff and tasks.</li>
+                                    @endif
+                                    @if (config('app.is_tenant'))
+                                        <li>Use Bulk Assign Department on the Staff page to select several staff members and assign them to one department together.</li>
+                                    @endif
+                                <li>A random password is created automatically and the staff member receives a StaffX invitation with sign-in and password-reset options.</li>
+                                <li>Open View Tasks next to a staff member to see that person's assigned work.</li>
+                                <li>Use Impersonate to temporarily view the app as another user. Select Stop Impersonating in the sidebar to return to your own account.</li>
                                 </ul>
                             </div>
                             <div class="card-footer bg-transparent">
@@ -184,6 +194,9 @@
                                 <div class="card-body">
                                     <ul class="mb-0">
                                         <li>Your Staff page is labelled Users because you can view and edit every user, including admins. You can change name, email, password, and role.</li>
+                                        @if (config('app.is_tenant'))
+                                            <li>Organizations lists every organization that has registered on StaffX. This view is read-only.</li>
+                                        @endif
                                         <li>Laravel Logs shows the application and outgoing-mail logs for troubleshooting.</li>
                                         <li>Backups lets you run and retrieve backups. The database backup job also runs daily.</li>
                                         <li>Activity Logs records changes to users and tasks. Activity buttons appear only for this configured account.</li>
@@ -191,6 +204,9 @@
                                 </div>
                                 <div class="card-footer bg-transparent d-flex flex-wrap gap-2">
                                     <a href="{{ backpack_url('staff') }}" class="btn btn-outline-warning">Open Users</a>
+                                    @if (config('app.is_tenant'))
+                                        <a href="{{ backpack_url('organizations') }}" class="btn btn-outline-warning">Organizations</a>
+                                    @endif
                                     <a href="{{ route('log.index') }}" class="btn btn-outline-warning">Laravel Logs</a>
                                     <a href="{{ route('backup.index') }}" class="btn btn-outline-warning">Backups</a>
                                     <a href="{{ backpack_url('activity-log') }}" class="btn btn-outline-warning">Activity Logs</a>
@@ -198,6 +214,19 @@
                             </div>
                         </div>
                     @endif
+                @endif
+
+                @if (config('app.is_tenant'))
+                    <div class="col-12">
+                        <div class="card border-info">
+                            <div class="card-header">
+                                <h4 class="mb-0"><i class="la la-building me-2"></i>Organization Privacy</h4>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-0">Your organization has a private workspace. Users, tasks, recurring tasks, remarks, email notifications, and activity records are visible only to people in your organization. Email addresses remain unique across the application.</p>
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
                 <div class="col-12">
@@ -209,7 +238,11 @@
                             <ul class="mb-0">
                                 <li>Use your email address and password to sign in. If you do not know your password, use Forgot Password on the sign-in page.</li>
                                 <li>If Google sign-in is available on the sign-in page, you can use it only with the email address already registered for your account.</li>
-                                <li>New accounts are created by an admin. If you cannot access the app, contact an admin to check your account and email address.</li>
+                                @if (config('app.is_tenant'))
+                                    <li>New organizations can register from the sign-in page. After registration, the organization owner can add the remaining admins and staff.</li>
+                                @else
+                                    <li>New accounts are created by an admin. If you cannot access the app, contact an admin to check your account and email address.</li>
+                                @endif
                             </ul>
                         </div>
                     </div>

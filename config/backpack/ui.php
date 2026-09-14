@@ -46,7 +46,7 @@ return [
     // ----
 
     // Project name - shown in the window title
-    'project_name' => 'GCI Staff Schedule',
+    'project_name' => 'StaffX',
 
     // Content of the HTML meta robots tag to prevent indexing and link following
     'meta_robots_content' => 'noindex, nofollow',
@@ -63,7 +63,7 @@ return [
     'home_link' => '',
 
     // Menu logo. You can replace this with an <img> tag if you have a logo.
-    'project_logo' => '<b>GCI </b> Staff',
+    'project_logo' => '<b>Staff</b>X',
 
     // Show / hide breadcrumbs on admin panel pages.
     'breadcrumbs' => true,

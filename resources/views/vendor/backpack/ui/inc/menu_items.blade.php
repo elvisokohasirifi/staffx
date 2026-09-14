@@ -15,8 +15,14 @@
         </a>
     </li>
     <x-backpack::menu-item :title="backpack_user()?->canManageAllUsers() ? 'Users' : 'Staff'" icon="la la-users" :link="backpack_url('staff')" />
+    @if(config('app.is_tenant') && backpack_user()?->isOrganizationOwner())
+        <x-backpack::menu-item title="Departments" icon="la la-sitemap" :link="backpack_url('departments')" />
+    @endif
     <x-backpack::menu-item title="Summary" icon="la la-chart-pie" :link="route('summary.index')" />
     @if(backpack_user()?->hasAdminEmailAccess())
+        @if(config('app.is_tenant'))
+            <x-backpack::menu-item title="Organizations" icon="la la-building" :link="backpack_url('organizations')" />
+        @endif
         <x-backpack::menu-item title="Laravel Logs" icon="la la-file-alt" :link="route('log.index')" />
         <x-backpack::menu-item title="Backups" icon="la la-hdd-o" :link="route('backup.index')" />
         <x-backpack::menu-item title="Activity Logs" icon="la la-stream" :link="backpack_url('activity-log')" />

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\RecurringTask;
+use App\Rules\StaffInCurrentOrganization;
 use App\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -35,6 +36,7 @@ class RecurringTaskRequest extends FormRequest
                 'required',
                 'uuid',
                 Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+                new StaffInCurrentOrganization,
             ],
         ];
     }

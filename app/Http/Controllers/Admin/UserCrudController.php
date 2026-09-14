@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Http\Requests\BulkAssignStaffDepartmentRequest;
 use App\Http\Requests\UserRequest;
+use App\Models\Department;
 use App\Models\User;
+use App\Notifications\StaffAccountInvitationNotification;
 use App\UserRole;
 use Backpack\ActivityLog\Http\Controllers\Operations\EntryActivityOperation;
 use Backpack\ActivityLog\Http\Controllers\Operations\ModelActivityOperation;
@@ -13,11 +16,11 @@ use Backpack\CRUD\app\Http\Controllers\Operations\DeleteOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\ListOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\ShowOperation;
 use Backpack\CRUD\app\Http\Controllers\Operations\UpdateOperation;
-use Backpack\CRUD\app\Library\Auth\PasswordBrokerManager;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanel;
 use Backpack\CRUD\app\Library\CrudPanel\CrudPanelFacade as CRUD;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 /**
@@ -47,11 +50,11 @@ class UserCrudController extends CrudController
         CRUD::setModel(User::class);
         CRUD::setRoute(trim((string) config('backpack.base.route_prefix'), '/').'/staff');
         CRUD::setEntityNameStrings(
-            $this->canManageAllUsers() ? 'user' : 'staff member',
-            $this->canManageAllUsers() ? 'users' : 'staff'
+            $this->canManageAllUsers() ? 'user' : ($this->canManageOrganizationUsers() ? 'team member' : 'staff member'),
+            $this->canManageAllUsers() ? 'users' : ($this->canManageOrganizationUsers() ? 'team' : 'staff')
         );
 
-        if (! $this->canManageAllUsers()) {
+        if (! $this->canManageOrganizationUsers()) {
             CRUD::addClause('where', 'role', UserRole::Staff->value);
         }
 
@@ -75,9 +78,34 @@ class UserCrudController extends CrudController
     {
         $this->hideActivityButtonsWhenUnauthorized();
 
+        if ($this->canBulkAssignDepartments()) {
+            CRUD::allowAccess('bulk_assign_department');
+            CRUD::button('bulk_assign_department')
+                ->stack('top')
+                ->view('crud::buttons.quick')
+                ->meta([
+                    'access' => true,
+                    'label' => 'Bulk Assign Department',
+                    'icon' => 'la la-sitemap',
+                    'wrapper' => [
+                        'element' => 'a',
+                        'href' => route('staff.bulk-assign-department'),
+                    ],
+                ]);
+        }
+
         CRUD::column('name')->label('Name');
         CRUD::column('email')->label('Email');
-        if ($this->canManageAllUsers()) {
+        if (config('app.is_tenant')) {
+            CRUD::with('department');
+            CRUD::column('department_id')
+                ->label('Department')
+                ->type('select')
+                ->entity('department')
+                ->model(Department::class)
+                ->attribute('name');
+        }
+        if ($this->canManageOrganizationUsers()) {
             CRUD::addColumn([
                 'name' => 'role',
                 'label' => 'Role',
@@ -105,6 +133,11 @@ class UserCrudController extends CrudController
 
         CRUD::field('name')->label('Name')->type('text');
         CRUD::field('email')->label('Email')->type('email');
+        $this->addDepartmentField();
+
+        if ($this->canManageOrganizationUsers()) {
+            $this->addRoleField();
+        }
     }
 
     protected function setupUpdateOperation(): void
@@ -113,19 +146,14 @@ class UserCrudController extends CrudController
 
         CRUD::field('name')->label('Name')->type('text');
         CRUD::field('email')->label('Email')->type('email');
+        $this->addDepartmentField();
 
-        if ($this->canManageAllUsers()) {
+        if ($this->canManageOrganizationUsers()) {
             CRUD::field('password')
                 ->label('Password')
                 ->type('password')
                 ->hint('Leave blank to keep the current password.');
-            CRUD::field('role')
-                ->label('Role')
-                ->type('select_from_array')
-                ->options([
-                    UserRole::Admin->value => 'Admin',
-                    UserRole::Staff->value => 'Staff',
-                ]);
+            $this->addRoleField();
         }
     }
 
@@ -157,7 +185,7 @@ class UserCrudController extends CrudController
         $this->traitSetupEntryActivityOperationDefaults();
     }
 
-    public function store()
+    public function store(): RedirectResponse
     {
         $this->crud->hasAccessOrFail('create');
         $request = $this->crud->validateRequest();
@@ -166,7 +194,9 @@ class UserCrudController extends CrudController
         $item = $this->crud->create(array_merge(
             $this->crud->getStrippedSaveRequest($request),
             [
-                'role' => UserRole::Staff->value,
+                'role' => $this->canManageOrganizationUsers()
+                    ? $request->string('role')->value() ?: UserRole::Staff->value
+                    : UserRole::Staff->value,
                 'password' => Str::password(32),
             ],
         ));
@@ -175,13 +205,8 @@ class UserCrudController extends CrudController
         \Alert::success(trans('backpack::crud.insert_success'))->flash();
         $this->crud->setSaveAction();
 
-        $status = $this->passwordBroker()->sendResetLink(['email' => $item->email]);
-
-        if ($status === Password::RESET_LINK_SENT) {
-            \Alert::info('A password reset link was emailed to the new staff member.')->flash();
-        } else {
-            \Alert::warning(trans($status))->flash();
-        }
+        $item->notify(new StaffAccountInvitationNotification);
+        \Alert::info('A StaffX invitation email was sent to the new staff member.')->flash();
 
         return $this->crud->performSaveAction($item->getKey());
     }
@@ -204,7 +229,7 @@ class UserCrudController extends CrudController
 
     public function update()
     {
-        if ($this->canManageAllUsers() && blank(request('password'))) {
+        if ($this->canManageOrganizationUsers() && blank(request('password'))) {
             request()->request->remove('password');
         }
 
@@ -242,6 +267,41 @@ class UserCrudController extends CrudController
         return redirect()->to(backpack_url('dashboard'));
     }
 
+    public function bulkAssignDepartment(): View
+    {
+        abort_unless($this->canBulkAssignDepartments(), 403);
+
+        return view('admin.staff.bulk-assign-department', [
+            'departments' => Department::query()->orderBy('name')->get(['id', 'name']),
+            'staffMembers' => User::query()
+                ->staff()
+                ->with('department')
+                ->orderBy('name')
+                ->get(['id', 'name', 'email', 'department_id']),
+        ]);
+    }
+
+    public function bulkAssignDepartmentStore(BulkAssignStaffDepartmentRequest $request): RedirectResponse
+    {
+        abort_unless($this->canBulkAssignDepartments(), 403);
+
+        $validated = $request->validated();
+        $staffMembers = User::query()
+            ->staff()
+            ->whereKey($validated['staff_ids'])
+            ->get();
+
+        DB::transaction(function () use ($staffMembers, $validated): void {
+            $staffMembers->each(fn (User $staffMember) => $staffMember->update([
+                'department_id' => $validated['department_id'],
+            ]));
+        });
+
+        \Alert::success($staffMembers->count().' staff member(s) assigned to the department.')->flash();
+
+        return redirect()->route('staff.bulk-assign-department');
+    }
+
     private function denyAllAccess(): void
     {
         foreach (['list', 'show', 'create', 'update', 'delete'] as $operation) {
@@ -264,6 +324,44 @@ class UserCrudController extends CrudController
         return backpack_user()?->canManageAllUsers() ?? false;
     }
 
+    private function canManageOrganizationUsers(): bool
+    {
+        return backpack_user()?->canManageOrganizationUsers() ?? false;
+    }
+
+    private function canBulkAssignDepartments(): bool
+    {
+        return config('app.is_tenant') && (backpack_user()?->isAdmin() ?? false);
+    }
+
+    private function addRoleField(): void
+    {
+        CRUD::field('role')
+            ->label('Role')
+            ->type('select_from_array')
+            ->options([
+                UserRole::Admin->value => 'Admin',
+                UserRole::Staff->value => 'Staff',
+            ])
+            ->default(UserRole::Staff->value);
+    }
+
+    private function addDepartmentField(): void
+    {
+        if (! config('app.is_tenant')) {
+            return;
+        }
+
+        CRUD::field('department_id')
+            ->label('Department')
+            ->type('select')
+            ->entity('department')
+            ->model(Department::class)
+            ->attribute('name')
+            ->allows_null(true)
+            ->options(fn ($query) => $query->orderBy('name')->get());
+    }
+
     private function hideActivityButtonsWhenUnauthorized(): void
     {
         if ($this->canViewActivityButtons()) {
@@ -272,12 +370,5 @@ class UserCrudController extends CrudController
 
         CRUD::removeButton('view_model_logs');
         CRUD::removeButton('view_entry_logs');
-    }
-
-    private function passwordBroker()
-    {
-        $manager = new PasswordBrokerManager(app());
-
-        return $manager->broker(config('backpack.base.passwords'));
     }
 }

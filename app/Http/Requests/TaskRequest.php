@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Task;
+use App\Rules\StaffInCurrentOrganization;
 use App\TaskStatus;
 use App\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
@@ -60,6 +61,7 @@ class TaskRequest extends FormRequest
                     'required',
                     'uuid',
                     Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+                    new StaffInCurrentOrganization,
                 ],
             ];
         }
@@ -77,6 +79,7 @@ class TaskRequest extends FormRequest
                 'required',
                 'uuid',
                 Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+                new StaffInCurrentOrganization,
             ],
         ];
     }

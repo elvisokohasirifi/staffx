@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\Task;
 use App\TaskStatus;
+use App\Tenancy\TenantContext;
 use Illuminate\Mail\Events\MessageSent;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
@@ -17,7 +18,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(TenantContext::class);
     }
 
     /**

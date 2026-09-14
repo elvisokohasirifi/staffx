@@ -6,3 +6,4 @@ Before planning or editing, find the row whose globs match the file's path and r
 | --- | --- |
 | app/Http/Controllers/Admin/TaskCrudController.php | .ai/rules/admin.md |
 | resources/views/admin/help/** | .ai/rules/help.md |
+| app/Models/** | .ai/rules/models.md |

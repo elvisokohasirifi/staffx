@@ -8,6 +8,7 @@ use App\Models\TaskRemark;
 use App\Models\User;
 use App\Notifications\AdminEmailNotification;
 use App\Notifications\PendingTasksReminderNotification;
+use App\Notifications\StaffAccountInvitationNotification;
 use App\Notifications\TasksApprovedNotification;
 use App\Notifications\TasksAssignedNotification;
 use App\TaskStatus;
@@ -116,7 +117,7 @@ test('sent mails are also written to the application logs', function () {
         ->andReturn($mailLogger);
 
     $email = (new Email)
-        ->from(new Address('hello@example.com', 'GCI Staff'))
+        ->from(new Address('hello@example.com', 'StaffX'))
         ->to(new Address('staff@example.com', 'Staff User'))
         ->subject('Task reminder')
         ->text('Please complete your pending tasks.')
@@ -138,13 +139,13 @@ test('sent mails are also written to the application logs', function () {
         ->once()
         ->with('Mail sent', Mockery::on(function (array $context): bool {
             return $context['subject'] === 'Task reminder'
-                && $context['from'] === ['"GCI Staff" <hello@example.com>']
+                && $context['from'] === ['"StaffX" <hello@example.com>']
                 && $context['to'] === ['"Staff User" <staff@example.com>']
                 && $context['text'] === 'Please complete your pending tasks.';
         }));
 });
 
-test('an admin can create a staff account and trigger a password reset email', function () {
+test('an admin can create a staff account and send a StaffX invitation email', function () {
     Notification::fake();
 
     $admin = User::factory()->admin()->create();
@@ -161,7 +162,15 @@ test('an admin can create a staff account and trigger a password reset email', f
     expect($staff)->not->toBeNull();
     expect($staff->isStaff())->toBeTrue();
 
-    Notification::assertSentTo($staff, ResetPasswordNotification::class);
+    Notification::assertSentTo($staff, StaffAccountInvitationNotification::class, function (StaffAccountInvitationNotification $notification) use ($staff): bool {
+        $message = $notification->toMail($staff);
+
+        return $message->subject === 'Welcome to StaffX'
+            && $message->actionText === 'Sign In'
+            && $message->actionUrl === backpack_url('login')
+            && str_contains(implode(' ', $message->introLines), 'added to your company\'s StaffX staff management platform');
+    });
+    Notification::assertNotSentTo($staff, ResetPasswordNotification::class);
 
     $activity = Activity::query()
         ->where('subject_type', User::class)

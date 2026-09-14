@@ -73,21 +73,39 @@
         <div class="col-md-12">
             <div class="mb-4">
                 <h2 class="mb-1">Task Summary</h2>
-                <p class="text-muted mb-0">A staff-by-staff overview of assigned work, completion, and current status distribution.</p>
+                <p class="text-muted mb-0">
+                    A staff-by-staff overview of assigned work, completion, and current status distribution.
+                    @if ($selectedDepartment)
+                        Viewing {{ $selectedDepartment->name }}.
+                    @elseif (config('app.is_tenant'))
+                        Viewing all staff.
+                    @endif
+                </p>
             </div>
 
             <div class="card mb-4">
                 <div class="card-body">
                     <form method="GET" action="{{ route('summary.index') }}" class="row g-3 align-items-end">
-                        <div class="col-md-4">
+                        <div class="{{ config('app.is_tenant') ? 'col-md-3' : 'col-md-4' }}">
                             <label for="start_date" class="form-label">Start Date</label>
                             <input type="date" name="start_date" id="start_date" class="form-control" value="{{ $startDate }}">
                         </div>
-                        <div class="col-md-4">
+                        <div class="{{ config('app.is_tenant') ? 'col-md-3' : 'col-md-4' }}">
                             <label for="end_date" class="form-label">End Date</label>
                             <input type="date" name="end_date" id="end_date" class="form-control" value="{{ $endDate }}">
                         </div>
-                        <div class="col-md-4 d-flex gap-2">
+                        @if (config('app.is_tenant'))
+                            <div class="col-md-3">
+                                <label for="department_id" class="form-label">Department</label>
+                                <select name="department_id" id="department_id" class="form-select">
+                                    <option value="">All Staff</option>
+                                    @foreach ($departments as $department)
+                                        <option value="{{ $department->id }}" @selected($selectedDepartment?->is($department))>{{ $department->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        @endif
+                        <div class="{{ config('app.is_tenant') ? 'col-md-3' : 'col-md-4' }} d-flex gap-2">
                             <button type="submit" class="btn btn-primary">Apply Filter</button>
                             <a href="{{ route('summary.index') }}" class="btn btn-outline-secondary">Clear</a>
                         </div>
@@ -155,11 +173,11 @@
                 <div class="col-lg-7 summary-table-column">
                     <div class="card h-100 summary-table-card">
                         <div class="card-header">
-                            <h4 class="mb-0">Staff Summary</h4>
+                            <h4 class="mb-0">{{ $selectedDepartment ? $selectedDepartment->name.' Department Summary' : 'Staff Summary' }}</h4>
                         </div>
                         <div class="card-body p-0">
                             @if($staffSummaries->isEmpty())
-                                <div class="p-4 text-muted">There are no staff members to summarize.</div>
+                                <div class="p-4 text-muted">There are no staff members to summarize for this selection.</div>
                             @else
                                 <div class="d-block d-xl-none">
                                     @foreach($staffSummaries as $summary)

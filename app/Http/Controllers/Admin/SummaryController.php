@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Department;
 use App\Models\Task;
 use App\Models\User;
 use App\TaskStatus;
@@ -19,6 +20,10 @@ class SummaryController extends Controller
 
         $startDate = $this->parseDate($request->query('start_date'));
         $endDate = $this->parseDate($request->query('end_date'));
+        $departments = config('app.is_tenant')
+            ? Department::query()->orderBy('name')->get(['id', 'name'])
+            : collect();
+        $selectedDepartment = $this->findSelectedDepartment($departments, $request->query('department_id'));
 
         $taskSummaryQuery = Task::query()->staffTasks();
 
@@ -30,7 +35,14 @@ class SummaryController extends Controller
             $taskSummaryQuery->whereDate('scheduled_for', '<=', $endDate->toDateString());
         }
 
-        $staff = User::query()->staff()->orderBy('name')->get(['id', 'name', 'email']);
+        $staffQuery = User::query()->staff()->orderBy('name');
+
+        if ($selectedDepartment !== null) {
+            $staffQuery->whereBelongsTo($selectedDepartment, 'department');
+            $taskSummaryQuery->whereHas('assignee', fn ($query) => $query->whereBelongsTo($selectedDepartment, 'department'));
+        }
+
+        $staff = $staffQuery->get(['id', 'name', 'email', 'department_id']);
 
         $aggregates = (clone $taskSummaryQuery)
             ->selectRaw('
@@ -78,6 +90,8 @@ class SummaryController extends Controller
             'startDate' => $startDate?->toDateString(),
             'endDate' => $endDate?->toDateString(),
             'totalTasks' => $statusCounts->sum('count'),
+            'departments' => $departments,
+            'selectedDepartment' => $selectedDepartment,
         ]);
     }
 
@@ -110,5 +124,14 @@ class SummaryController extends Controller
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    private function findSelectedDepartment(Collection $departments, mixed $departmentId): ?Department
+    {
+        if (! is_string($departmentId) || $departmentId === '') {
+            return null;
+        }
+
+        return $departments->first(fn (Department $department): bool => $department->getKey() === $departmentId);
     }
 }

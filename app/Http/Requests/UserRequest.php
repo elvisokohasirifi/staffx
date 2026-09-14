@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\User;
+use App\Rules\DepartmentInCurrentOrganization;
 use App\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -43,9 +44,16 @@ class UserRequest extends FormRequest
             ],
         ];
 
-        if (backpack_user()?->canManageAllUsers() && $this->route('id')) {
+        if (backpack_user()?->canManageOrganizationUsers()) {
+            $rules['role'] = ['sometimes', Rule::enum(UserRole::class)];
+        }
+
+        if (config('app.is_tenant')) {
+            $rules['department_id'] = ['nullable', 'uuid', new DepartmentInCurrentOrganization];
+        }
+
+        if (backpack_user()?->canManageOrganizationUsers() && $this->route('id')) {
             $rules['password'] = ['nullable', 'string', 'min:8'];
-            $rules['role'] = ['required', Rule::enum(UserRole::class)];
         }
 
         return $rules;

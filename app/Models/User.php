@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\LogsActivity;
+use App\Tenancy\BelongsToOrganization;
 use App\UserRole;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -11,15 +12,18 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Activitylog\LogOptions;
 
-#[Fillable(['name', 'email', 'google_id', 'google_avatar', 'password', 'role'])]
+#[Fillable(['name', 'email', 'google_id', 'google_avatar', 'password', 'role', 'organization_id', 'department_id'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
+    use BelongsToOrganization;
     use CrudTrait;
 
     /** @use HasFactory<UserFactory> */
@@ -93,6 +97,16 @@ class User extends Authenticatable
         return $this->hasMany(TaskRemark::class, 'author_id');
     }
 
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
+    public function administeredDepartments(): BelongsToMany
+    {
+        return $this->belongsToMany(Department::class, 'department_administrators');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;
@@ -120,6 +134,18 @@ class User extends Authenticatable
     public function canManageAllUsers(): bool
     {
         return $this->isAdmin() && $this->hasAdminEmailAccess();
+    }
+
+    public function isOrganizationOwner(): bool
+    {
+        return config('app.is_tenant')
+            && $this->isAdmin()
+            && $this->organization?->owner_id === $this->getKey();
+    }
+
+    public function canManageOrganizationUsers(): bool
+    {
+        return $this->canManageAllUsers() || $this->isOrganizationOwner();
     }
 
     public function avatar(): string

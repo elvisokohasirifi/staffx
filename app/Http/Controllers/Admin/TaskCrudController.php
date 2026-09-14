@@ -7,6 +7,7 @@ use App\Http\Requests\TaskRequest;
 use App\Models\Task;
 use App\Models\TaskRemark;
 use App\Models\User;
+use App\Rules\StaffInCurrentOrganization;
 use App\TaskStatus;
 use App\UserRole;
 use Backpack\ActivityLog\Http\Controllers\Operations\EntryActivityOperation;
@@ -300,6 +301,7 @@ class TaskCrudController extends CrudController
                 'required',
                 'uuid',
                 Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+                new StaffInCurrentOrganization,
             ],
         ], [
             'task_lines.required' => 'Please enter at least one task title.',
@@ -437,6 +439,7 @@ class TaskCrudController extends CrudController
                 'nullable',
                 'uuid',
                 Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+                new StaffInCurrentOrganization,
             ],
             'scheduled_for' => ['nullable', 'date'],
             'scheduled_time' => ['nullable', 'date_format:H:i'],

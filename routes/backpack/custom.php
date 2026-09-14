@@ -16,6 +16,8 @@ Route::group([
     ),
     'namespace' => 'App\Http\Controllers\Admin',
 ], function () { // custom admin routes
+    Route::get('staff/bulk-assign-department', 'UserCrudController@bulkAssignDepartment')->name('staff.bulk-assign-department');
+    Route::post('staff/bulk-assign-department', 'UserCrudController@bulkAssignDepartmentStore')->name('staff.bulk-assign-department-store');
     Route::crud('staff', 'UserCrudController');
     Route::post('staff/{id}/impersonate', 'UserCrudController@impersonate')->name('staff.impersonate');
     Route::post('stop-impersonating', 'UserCrudController@stopImpersonating')->name('staff.stop-impersonating');
@@ -47,6 +49,8 @@ Route::group([
     Route::post('tasks/{id}/mark-completed', 'TaskCrudController@markCompleted')->name('tasks.mark-completed');
     Route::post('tasks/{id}/approve-completed', 'TaskCrudController@approveCompleted')->name('tasks.approve-completed');
     Route::post('tasks/approve-completed-all', 'TaskCrudController@approveAllCompleted')->name('tasks.approve-completed-all');
+    Route::crud('departments', 'DepartmentCrudController');
+    Route::crud('organizations', 'OrganizationCrudController');
 }); // this should be the absolute last line of this file
 
 /**

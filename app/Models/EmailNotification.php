@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\LogsActivity;
+use App\Tenancy\BelongsToOrganization;
 use App\UserRole;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Database\Factories\EmailNotificationFactory;
@@ -20,9 +21,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'recipient_count',
     'sent_by_id',
     'sent_at',
+    'organization_id',
 ])]
 class EmailNotification extends Model
 {
+    use BelongsToOrganization;
     use CrudTrait;
 
     /** @use HasFactory<EmailNotificationFactory> */

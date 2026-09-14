@@ -14,7 +14,8 @@ class TaskRemarkPolicy
 
     public function view(User $user, TaskRemark $taskRemark): bool
     {
-        return $user->isAdmin() || $taskRemark->task->assignee_id === $user->getKey();
+        return $user->isInSameOrganizationAs($taskRemark)
+            && ($user->isAdmin() || $taskRemark->task->assignee_id === $user->getKey());
     }
 
     public function create(User $user): bool
@@ -24,12 +25,12 @@ class TaskRemarkPolicy
 
     public function update(User $user, TaskRemark $taskRemark): bool
     {
-        return $user->isAdmin();
+        return $user->isInSameOrganizationAs($taskRemark) && $user->isAdmin();
     }
 
     public function delete(User $user, TaskRemark $taskRemark): bool
     {
-        return $user->isAdmin();
+        return $user->isInSameOrganizationAs($taskRemark) && $user->isAdmin();
     }
 
     public function restore(User $user, TaskRemark $taskRemark): bool

@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\BackpackAuthenticateSession;
 use App\Http\Middleware\CheckIfAdmin;
+use App\Http\Middleware\SetTenantContext;
 use Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull;
 
 return [
@@ -18,7 +19,8 @@ return [
     | By default the registration is open only on localhost.
     */
 
-    'registration_open' => env('BACKPACK_REGISTRATION_OPEN', env('APP_ENV') === 'local'),
+    'registration_open' => ! config('app.is_tenant')
+        && env('BACKPACK_REGISTRATION_OPEN', env('APP_ENV') === 'local'),
 
     /*
     |--------------------------------------------------------------------------
@@ -117,6 +119,7 @@ return [
         CheckIfAdmin::class,
         ConvertEmptyStringsToNull::class,
         BackpackAuthenticateSession::class,
+        SetTenantContext::class,
         // \Backpack\CRUD\app\Http\Middleware\UseBackpackAuthGuardInsteadOfDefaultAuthGuard::class,
     ],
 

@@ -7,6 +7,7 @@ use App\Actions\Tasks\SendTaskNotificationsAction;
 use App\Http\Requests\RecurringTaskRequest;
 use App\Models\RecurringTask;
 use App\Models\User;
+use App\Rules\StaffInCurrentOrganization;
 use App\UserRole;
 use Backpack\CRUD\app\Http\Controllers\CrudController;
 use Backpack\CRUD\app\Http\Controllers\Operations\CreateOperation;
@@ -226,6 +227,7 @@ class RecurringTaskCrudController extends CrudController
                 'required',
                 'uuid',
                 Rule::exists('users', 'id')->where('role', UserRole::Staff->value),
+                new StaffInCurrentOrganization,
             ],
         ], [
             'task_lines.required' => 'Please enter at least one recurring task title.',

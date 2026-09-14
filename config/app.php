@@ -56,6 +56,8 @@ return [
 
     'admin_email' => env('ADMIN_EMAIL'),
 
+    'is_tenant' => filter_var(env('IS_TENANT', false), FILTER_VALIDATE_BOOLEAN),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

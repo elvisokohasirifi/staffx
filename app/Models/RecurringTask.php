@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Traits\LogsActivity;
+use App\Tenancy\BelongsToOrganization;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Carbon\CarbonInterface;
 use Database\Factories\RecurringTaskFactory;
@@ -23,9 +24,11 @@ use Illuminate\Support\Carbon;
     'is_active',
     'admin_id',
     'assignee_id',
+    'organization_id',
 ])]
 class RecurringTask extends Model
 {
+    use BelongsToOrganization;
     use CrudTrait;
 
     /** @use HasFactory<RecurringTaskFactory> */

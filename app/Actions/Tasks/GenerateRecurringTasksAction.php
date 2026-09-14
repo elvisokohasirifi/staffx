@@ -67,6 +67,7 @@ class GenerateRecurringTasksAction
                     'admin_id' => $recurringTask->admin_id,
                     'assignee_id' => $recurringTask->assignee_id,
                     'recurring_task_id' => $recurringTask->getKey(),
+                    'organization_id' => $recurringTask->organization_id,
                 ]));
             }
         });

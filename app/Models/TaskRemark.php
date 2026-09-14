@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Tenancy\BelongsToOrganization;
 use Backpack\CRUD\app\Models\Traits\CrudTrait;
 use Database\Factories\TaskRemarkFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -18,9 +19,11 @@ use Illuminate\Support\Str;
     'parent_remark_id',
     'body',
     'is_admin_remark',
+    'organization_id',
 ])]
 class TaskRemark extends Model
 {
+    use BelongsToOrganization;
     use CrudTrait;
 
     /** @use HasFactory<TaskRemarkFactory> */
