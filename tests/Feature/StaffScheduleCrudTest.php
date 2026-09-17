@@ -32,18 +32,21 @@ use Symfony\Component\Mime\Email;
 
 uses(RefreshDatabase::class);
 
-test('the app root redirects guests to registration when there are no users', function () {
+test('the app root is a public StaffX home page when there are no users', function () {
     $response = $this->get('/');
 
-    $response->assertRedirect('/register');
+    $response->assertSuccessful()
+        ->assertSeeText('The calm command center for work that')
+        ->assertSee(backpack_url('login'), false);
 });
 
-test('the app root redirects guests to login when users already exist', function () {
+test('the app root remains a public StaffX home page when users already exist', function () {
     User::factory()->admin()->create();
 
     $response = $this->get('/');
 
-    $response->assertRedirect('/login');
+    $response->assertSuccessful()
+        ->assertSee(backpack_url('login'), false);
 });
 
 test('users can start google login from the backpack login page', function () {
@@ -53,7 +56,7 @@ test('users can start google login from the backpack login page', function () {
 
     Socialite::fake('google');
 
-    $response = $this->get('/auth/google/redirect');
+    $response = $this->get('/admin/auth/google/redirect');
 
     $response->assertRedirect();
 });
@@ -77,9 +80,9 @@ test('an existing user can sign in with google using a matching email address', 
         'avatar' => 'https://example.com/avatar.png',
     ]));
 
-    $response = $this->get('/auth/google/callback');
+    $response = $this->get('/admin/auth/google/callback');
 
-    $response->assertRedirect('/dashboard');
+    $response->assertRedirect('/admin/dashboard');
     $this->assertAuthenticatedAs($user->fresh(), 'backpack');
 
     $user->refresh();
@@ -100,9 +103,9 @@ test('google login is rejected when there is no existing user for that email', f
         'email' => 'unknown@example.com',
     ]));
 
-    $response = $this->get('/auth/google/callback');
+    $response = $this->get('/admin/auth/google/callback');
 
-    $response->assertRedirect('/login');
+    $response->assertRedirect('/admin/login');
     $response->assertSessionHasErrors([
         'google' => 'No account was found for this Google email. Please contact an admin.',
     ]);
@@ -150,7 +153,7 @@ test('an admin can create a staff account and send a StaffX invitation email', f
 
     $admin = User::factory()->admin()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/staff', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/staff', [
         'name' => 'New Staff Member',
         'email' => 'staff@example.com',
     ]);
@@ -200,7 +203,7 @@ test('an admin can create an email notification for specific recipients', functi
         'email' => 'elvis@example.com',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/email-notifications', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/email-notifications', [
         'subject' => 'Important update',
         'body' => "Please review today's schedule.\n\nReach out if you have questions.",
         'recipient_user_ids' => [$staffOne->getKey(), $otherAdmin->getKey()],
@@ -231,7 +234,7 @@ test('an admin can create an email notification for specific recipients', functi
 test('the email notification create page includes clear controls for recipient selections', function () {
     $admin = User::factory()->admin()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->get('/email-notifications/create');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/email-notifications/create');
 
     $response->assertSuccessful();
     $response->assertSee('Clear role selection');
@@ -245,7 +248,7 @@ test('email notifications require at least one resolved recipient', function () 
 
     $admin = User::factory()->admin()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/email-notifications', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/email-notifications', [
         'subject' => 'Important update',
         'body' => 'Please review today\'s schedule.',
         'recipient_roles' => [],
@@ -263,7 +266,7 @@ test('email notifications require either roles or specific recipients but not bo
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/email-notifications', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/email-notifications', [
         'subject' => 'Important update',
         'body' => 'Please review today\'s schedule.',
         'recipient_roles' => [UserRole::Staff->value],
@@ -281,7 +284,7 @@ test('an admin can create a single task from the default create form', function 
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/tasks', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/tasks', [
         'title' => 'Open shop',
         'description' => 'Be ready before customers arrive.',
         'assignee_id' => $staff->id,
@@ -321,7 +324,7 @@ test('scheduled time defaults to 11 59 pm when a task is created without one', f
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/tasks', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/tasks', [
         'title' => 'Late follow-up',
         'description' => 'Default time test.',
         'assignee_id' => $staff->id,
@@ -366,7 +369,7 @@ test('admin personal tasks are only visible to their owner and are excluded from
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $ownerPersonalTasksResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/my-tasks/search', [
+    $ownerPersonalTasksResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/admin/my-tasks/search', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -380,7 +383,7 @@ test('admin personal tasks are only visible to their owner and are excluded from
     $ownerPersonalTasksResponse->assertSee('Owner personal task');
     $ownerPersonalTasksResponse->assertDontSee('Shared staff task');
 
-    $ownerSharedTasksResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/tasks/search', [
+    $ownerSharedTasksResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/admin/tasks/search', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -394,7 +397,7 @@ test('admin personal tasks are only visible to their owner and are excluded from
     $ownerSharedTasksResponse->assertSee('Shared staff task');
     $ownerSharedTasksResponse->assertDontSee('Owner personal task');
 
-    $otherAdminPersonalTasksResponse = $this->actingAs($otherAdmin, 'backpack')->post('/my-tasks/search', [
+    $otherAdminPersonalTasksResponse = $this->actingAs($otherAdmin, 'backpack')->post('/admin/my-tasks/search', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -407,11 +410,11 @@ test('admin personal tasks are only visible to their owner and are excluded from
     $otherAdminPersonalTasksResponse->assertOk();
     $otherAdminPersonalTasksResponse->assertDontSee('Owner personal task');
 
-    $otherAdminPersonalTaskShowResponse = $this->actingAs($otherAdmin, 'backpack')->get("/my-tasks/{$personalTask->id}/show");
+    $otherAdminPersonalTaskShowResponse = $this->actingAs($otherAdmin, 'backpack')->get("/admin/my-tasks/{$personalTask->id}/show");
 
     $otherAdminPersonalTaskShowResponse->assertNotFound();
 
-    $summaryResponse = $this->actingAs($ownerAdmin, 'backpack')->get('/summary');
+    $summaryResponse = $this->actingAs($ownerAdmin, 'backpack')->get('/admin/summary');
 
     $summaryResponse->assertSuccessful();
     $summaryResponse->assertViewHas('staffSummaries', function ($staffSummaries) use ($staff): bool {
@@ -434,12 +437,12 @@ test('an admin can bulk create private personal tasks from the my tasks section'
         'email' => 'personal-bulk-admin@example.com',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/my-tasks/bulk-create', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/my-tasks/bulk-create', [
         'scheduled_for' => today()->toDateString(),
         'task_lines' => "Review branch reports\nPrepare tomorrow outline\nFollow up on approvals",
     ]);
 
-    $response->assertRedirect('/my-tasks');
+    $response->assertRedirect('/admin/my-tasks');
 
     $tasks = Task::query()
         ->adminPersonalTasks()
@@ -458,7 +461,7 @@ test('an admin can bulk create private personal tasks from the my tasks section'
     expect($tasks->pluck('sort_order')->all())->toBe([1, 2, 3]);
     expect($tasks->every(fn (Task $task): bool => $task->is_admin_personal))->toBeTrue();
 
-    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/my-tasks');
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/admin/my-tasks');
 
     $tasksPageResponse->assertSuccessful();
     $tasksPageResponse->assertSee('Bulk Create My Tasks');
@@ -488,7 +491,7 @@ test('the my tasks list shows filters and applies them to personal task search r
         'status' => TaskStatus::Completed->value,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/my-tasks?start_date=2026-08-12&end_date=2026-08-12&status=completed');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/my-tasks?start_date=2026-08-12&end_date=2026-08-12&status=completed');
 
     $response->assertSuccessful();
     $response->assertSee('Filters');
@@ -499,7 +502,7 @@ test('the my tasks list shows filters and applies them to personal task search r
     $response->assertSee('value="2026-08-12"', false);
     $response->assertSee('value="completed" selected', false);
 
-    $searchResponse = $this->actingAs($admin, 'backpack')->post('/my-tasks/search?start_date=2026-08-12&end_date=2026-08-12&status=completed', [
+    $searchResponse = $this->actingAs($admin, 'backpack')->post('/admin/my-tasks/search?start_date=2026-08-12&end_date=2026-08-12&status=completed', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -524,7 +527,7 @@ test('the my task show page includes the delete action script', function () {
         'title' => 'Delete-ready personal task',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get("/my-tasks/{$task->id}/show");
+    $response = $this->actingAs($admin, 'backpack')->get("/admin/my-tasks/{$task->id}/show");
 
     $response->assertSuccessful();
     $response->assertSee('onclick="deleteEntry(this)"', false);
@@ -546,7 +549,7 @@ test('the my tasks list search shows progress buttons for personal tasks that ca
         'started_at' => now()->subHour(),
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/my-tasks/search', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/my-tasks/search', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -571,9 +574,9 @@ test('an admin can mark a pending personal task as in progress from my tasks', f
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post("/my-tasks/{$task->id}/mark-in-progress");
+    $response = $this->actingAs($admin, 'backpack')->post("/admin/my-tasks/{$task->id}/mark-in-progress");
 
-    $response->assertRedirect("/my-tasks/{$task->id}/show");
+    $response->assertRedirect("/admin/my-tasks/{$task->id}/show");
 
     $task->refresh();
 
@@ -590,9 +593,9 @@ test('an admin can mark an in-progress personal task as completed from my tasks'
         'started_at' => now()->subMinutes(30),
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post("/my-tasks/{$task->id}/mark-completed");
+    $response = $this->actingAs($admin, 'backpack')->post("/admin/my-tasks/{$task->id}/mark-completed");
 
-    $response->assertRedirect("/my-tasks/{$task->id}/show");
+    $response->assertRedirect("/admin/my-tasks/{$task->id}/show");
 
     $task->refresh();
 
@@ -608,7 +611,7 @@ test('the my task show page includes personal task action buttons when the task 
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get("/my-tasks/{$task->id}/show");
+    $response = $this->actingAs($admin, 'backpack')->get("/admin/my-tasks/{$task->id}/show");
 
     $response->assertSuccessful();
     $response->assertSeeText('Task Actions');
@@ -651,7 +654,7 @@ test('the my tasks page shows all-time personal task cards and status distributi
         'approved_as_completed' => true,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/my-tasks');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/my-tasks');
 
     $response->assertSuccessful();
     $response->assertSee('Total Personal Tasks');
@@ -685,7 +688,7 @@ test('the my tasks list page includes the delete action script', function () {
         'title' => 'List delete-ready personal task',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/my-tasks');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/my-tasks');
 
     $response->assertSuccessful();
     $response->assertSee('function deleteEntry(button)', false);
@@ -709,14 +712,14 @@ test('an admin can open the my tasks bulk update page and update selected person
         'approved_as_completed' => false,
     ]);
 
-    $pageResponse = $this->actingAs($admin, 'backpack')->get('/my-tasks/bulk-update');
+    $pageResponse = $this->actingAs($admin, 'backpack')->get('/admin/my-tasks/bulk-update');
 
     $pageResponse->assertSuccessful();
     $pageResponse->assertSee('Bulk Update My Tasks');
     $pageResponse->assertSee($firstTask->title);
     $pageResponse->assertSee($secondTask->title);
 
-    $updateResponse = $this->actingAs($admin, 'backpack')->post('/my-tasks/bulk-update', [
+    $updateResponse = $this->actingAs($admin, 'backpack')->post('/admin/my-tasks/bulk-update', [
         'task_ids' => [$firstTask->getKey(), $secondTask->getKey()],
         'scheduled_for' => today()->addDay()->toDateString(),
         'status' => TaskStatus::Completed->value,
@@ -724,7 +727,7 @@ test('an admin can open the my tasks bulk update page and update selected person
         'filter_scheduled_for' => today()->toDateString(),
     ]);
 
-    $updateResponse->assertRedirect('/my-tasks/bulk-update?filter_scheduled_for='.today()->toDateString());
+    $updateResponse->assertRedirect('/admin/my-tasks/bulk-update?filter_scheduled_for='.today()->toDateString());
 
     $firstTask->refresh();
     $secondTask->refresh();
@@ -751,19 +754,19 @@ test('an admin can open the my tasks bulk delete page and delete selected person
         'scheduled_for' => today()->toDateString(),
     ]);
 
-    $pageResponse = $this->actingAs($admin, 'backpack')->get('/my-tasks/bulk-delete');
+    $pageResponse = $this->actingAs($admin, 'backpack')->get('/admin/my-tasks/bulk-delete');
 
     $pageResponse->assertSuccessful();
     $pageResponse->assertSee('Bulk Delete My Tasks');
     $pageResponse->assertSee($firstTask->title);
     $pageResponse->assertSee($secondTask->title);
 
-    $deleteResponse = $this->actingAs($admin, 'backpack')->post('/my-tasks/bulk-delete', [
+    $deleteResponse = $this->actingAs($admin, 'backpack')->post('/admin/my-tasks/bulk-delete', [
         'task_ids' => [$firstTask->getKey(), $secondTask->getKey()],
         'filter_scheduled_for' => today()->toDateString(),
     ]);
 
-    $deleteResponse->assertRedirect('/my-tasks/bulk-delete?filter_scheduled_for='.today()->toDateString());
+    $deleteResponse->assertRedirect('/admin/my-tasks/bulk-delete?filter_scheduled_for='.today()->toDateString());
 
     expect(Task::query()->whereKey($firstTask->getKey())->exists())->toBeFalse();
     expect(Task::query()->whereKey($secondTask->getKey())->exists())->toBeFalse();
@@ -775,13 +778,13 @@ test('an admin can assign many tasks to a staff member from the bulk create page
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-create', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/tasks/bulk-create', [
         'assignee_id' => $staff->id,
         'scheduled_for' => today()->toDateString(),
         'task_lines' => "Open shop\nCheck inventory\nSend report",
     ]);
 
-    $response->assertRedirect('/tasks');
+    $response->assertRedirect('/admin/tasks');
 
     $tasks = Task::query()
         ->where('assignee_id', $staff->id)
@@ -806,7 +809,7 @@ test('an admin can assign many tasks to a staff member from the bulk create page
             ];
     });
 
-    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks');
 
     $tasksPageResponse->assertSuccessful();
     $tasksPageResponse->assertSee('Bulk Create Tasks');
@@ -817,12 +820,12 @@ test('an admin can assign many tasks to a staff member from the bulk create page
 test('an admin can open the bulk update page from tasks', function () {
     $admin = User::factory()->admin()->create();
 
-    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks');
 
     $tasksPageResponse->assertSuccessful();
     $tasksPageResponse->assertSee('Bulk Update Tasks');
 
-    $bulkUpdateResponse = $this->actingAs($admin, 'backpack')->get('/tasks/bulk-update');
+    $bulkUpdateResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks/bulk-update');
 
     $bulkUpdateResponse->assertSuccessful();
     $bulkUpdateResponse->assertSee('Bulk Update Tasks');
@@ -856,13 +859,13 @@ test('an admin can open the bulk approve completed tasks flow from tasks', funct
         'approved_as_completed' => false,
     ]);
 
-    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks');
 
     $tasksPageResponse->assertSuccessful();
     $tasksPageResponse->assertSee('Bulk Approve Completed Tasks');
     $tasksPageResponse->assertSee('filter_status=completed&amp;filter_approval_status=pending', false);
 
-    $bulkApprovePageResponse = $this->actingAs($admin, 'backpack')->get('/tasks/bulk-update?filter_status=completed&filter_approval_status=pending');
+    $bulkApprovePageResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks/bulk-update?filter_status=completed&filter_approval_status=pending');
 
     $bulkApprovePageResponse->assertSuccessful();
     $bulkApprovePageResponse->assertSee('Bulk Update Tasks');
@@ -889,24 +892,24 @@ test('an admin can open the bulk delete page and delete selected tasks', functio
         'scheduled_for' => today()->toDateString(),
     ]);
 
-    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/tasks');
+    $tasksPageResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks');
 
     $tasksPageResponse->assertSuccessful();
     $tasksPageResponse->assertSee('Bulk Delete Tasks');
 
-    $bulkDeleteResponse = $this->actingAs($admin, 'backpack')->get('/tasks/bulk-delete');
+    $bulkDeleteResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks/bulk-delete');
 
     $bulkDeleteResponse->assertSuccessful();
     $bulkDeleteResponse->assertSee('Bulk Delete Tasks');
     $bulkDeleteResponse->assertSee($firstTask->title);
     $bulkDeleteResponse->assertSee($secondTask->title);
 
-    $deleteResponse = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-delete', [
+    $deleteResponse = $this->actingAs($admin, 'backpack')->post('/admin/tasks/bulk-delete', [
         'task_ids' => [$firstTask->id, $secondTask->id],
         'filter_scheduled_for' => today()->toDateString(),
     ]);
 
-    $deleteResponse->assertRedirect('/tasks/bulk-delete?filter_scheduled_for='.today()->toDateString());
+    $deleteResponse->assertRedirect('/admin/tasks/bulk-delete?filter_scheduled_for='.today()->toDateString());
 
     expect(Task::query()->whereKey($firstTask->id)->exists())->toBeFalse();
     expect(Task::query()->whereKey($secondTask->id)->exists())->toBeFalse();
@@ -932,7 +935,7 @@ test('an admin can bulk reassign tasks and staff receives one grouped assignment
         'title' => 'Second reassigned task',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-update', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/tasks/bulk-update', [
         'task_ids' => [$firstTask->id, $secondTask->id],
         'assignee_id' => $newStaff->id,
         'scheduled_for' => '',
@@ -941,7 +944,7 @@ test('an admin can bulk reassign tasks and staff receives one grouped assignment
         'filter_scheduled_for' => today()->toDateString(),
     ]);
 
-    $response->assertRedirect('/tasks/bulk-update?filter_scheduled_for='.today()->toDateString());
+    $response->assertRedirect('/admin/tasks/bulk-update?filter_scheduled_for='.today()->toDateString());
 
     $firstTask->refresh();
     $secondTask->refresh();
@@ -979,7 +982,7 @@ test('an admin can bulk approve completed tasks and staff receives one grouped a
         'title' => 'Second bulk approved task',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/tasks/bulk-update', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/tasks/bulk-update', [
         'task_ids' => [$firstTask->id, $secondTask->id],
         'assignee_id' => '',
         'scheduled_for' => '',
@@ -987,7 +990,7 @@ test('an admin can bulk approve completed tasks and staff receives one grouped a
         'approval_action' => 'approve',
     ]);
 
-    $response->assertRedirect('/tasks/bulk-update');
+    $response->assertRedirect('/admin/tasks/bulk-update');
 
     $firstTask->refresh();
     $secondTask->refresh();
@@ -1074,7 +1077,7 @@ test('the pending task reminders job emails each staff member their incomplete t
 test('the first registered user becomes an admin automatically', function () {
     config()->set('backpack.base.registration_open', true);
 
-    $firstResponse = $this->post('/register', [
+    $firstResponse = $this->post('/admin/register', [
         'name' => 'First User',
         'email' => 'first@example.com',
         'password' => 'password',
@@ -1087,7 +1090,7 @@ test('the first registered user becomes an admin automatically', function () {
 
     auth('backpack')->logout();
 
-    $secondResponse = $this->post('/register', [
+    $secondResponse = $this->post('/admin/register', [
         'name' => 'Second User',
         'email' => 'second@example.com',
         'password' => 'password',
@@ -1113,7 +1116,7 @@ test('a staff member can update the status of an assigned task', function () {
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($staff, 'backpack')->put("/tasks/{$task->id}", [
+    $response = $this->actingAs($staff, 'backpack')->put("/admin/tasks/{$task->id}", [
         'id' => $task->id,
         'status' => TaskStatus::Completed->value,
         'outcome_notes' => 'Task finished successfully.',
@@ -1136,9 +1139,9 @@ test('a staff member can mark a pending task as in progress from the action butt
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/mark-in-progress");
+    $response = $this->actingAs($staff, 'backpack')->post("/admin/tasks/{$task->id}/mark-in-progress");
 
-    $response->assertRedirect("/tasks/{$task->id}/show");
+    $response->assertRedirect("/admin/tasks/{$task->id}/show");
 
     $task->refresh();
 
@@ -1156,9 +1159,9 @@ test('a staff member can mark an in-progress task as completed from the action b
         'started_at' => now()->subHour(),
     ]);
 
-    $response = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/mark-completed");
+    $response = $this->actingAs($staff, 'backpack')->post("/admin/tasks/{$task->id}/mark-completed");
 
-    $response->assertRedirect("/tasks/{$task->id}/show");
+    $response->assertRedirect("/admin/tasks/{$task->id}/show");
 
     $task->refresh();
 
@@ -1175,9 +1178,9 @@ test('a staff member can mark a pending task as completed from the completion ro
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/mark-completed");
+    $response = $this->actingAs($staff, 'backpack')->post("/admin/tasks/{$task->id}/mark-completed");
 
-    $response->assertRedirect("/tasks/{$task->id}/show");
+    $response->assertRedirect("/admin/tasks/{$task->id}/show");
 
     $task->refresh();
 
@@ -1195,9 +1198,9 @@ test('a stale in-progress request redirects instead of failing for staff', funct
         'started_at' => now()->subMinutes(15),
     ]);
 
-    $response = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/mark-in-progress");
+    $response = $this->actingAs($staff, 'backpack')->post("/admin/tasks/{$task->id}/mark-in-progress");
 
-    $response->assertRedirect("/tasks/{$task->id}/show");
+    $response->assertRedirect("/admin/tasks/{$task->id}/show");
 
     $task->refresh();
 
@@ -1217,18 +1220,18 @@ test('a task show page lets an authorized user reply to a remark', function () {
         'is_admin_remark' => true,
     ]);
 
-    $showResponse = $this->actingAs($staff, 'backpack')->get("/tasks/{$task->id}/show");
+    $showResponse = $this->actingAs($staff, 'backpack')->get("/admin/tasks/{$task->id}/show");
 
     $showResponse->assertSuccessful();
     $showResponse->assertSeeText('Remarks & Responses');
     $showResponse->assertSee('Add a response');
 
-    $replyResponse = $this->actingAs($staff, 'backpack')->post("/tasks/{$task->id}/remarks", [
+    $replyResponse = $this->actingAs($staff, 'backpack')->post("/admin/tasks/{$task->id}/remarks", [
         'parent_remark_id' => $remark->id,
         'body' => 'Here is my reply to this remark.',
     ]);
 
-    $replyResponse->assertRedirect("/tasks/{$task->id}/show");
+    $replyResponse->assertRedirect("/admin/tasks/{$task->id}/show");
 
     $reply = TaskRemark::query()
         ->where('task_id', $task->id)
@@ -1260,7 +1263,7 @@ test('the dashboard shows todays task summary cards', function () {
         'approved_as_completed' => true,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/dashboard');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/dashboard');
 
     $response->assertSuccessful();
     $response->assertSee('Due Today');
@@ -1299,7 +1302,7 @@ test('dashboard counts only approved completed tasks as completed', function () 
         'approved_as_completed' => true,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/dashboard');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/dashboard');
 
     $response->assertSuccessful();
     $response->assertSee('Awaiting approval task');
@@ -1312,7 +1315,7 @@ test('an admin can open a staff members tasks from the staff list', function () 
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/staff/search', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/staff/search', [
         'draw' => 1,
         'start' => 0,
         'length' => 20,
@@ -1321,7 +1324,7 @@ test('an admin can open a staff members tasks from the staff list', function () 
 
     $response->assertSuccessful();
     $response->assertSee('View Tasks');
-    $response->assertSee('/tasks?staff_id='.$staff->id, false);
+    $response->assertSee('staff_id='.$staff->id, false);
 });
 
 test('the task show page displays the full title', function () {
@@ -1335,7 +1338,7 @@ test('the task show page displays the full title', function () {
         'title' => $title,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get("/tasks/{$task->id}/show");
+    $response = $this->actingAs($admin, 'backpack')->get("/admin/tasks/{$task->id}/show");
 
     $response->assertSuccessful();
     $response->assertSeeText($title);
@@ -1345,7 +1348,7 @@ test('a staff member cannot open another staff management page', function () {
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($staff, 'backpack')->get("/staff/{$admin->id}/edit");
+    $response = $this->actingAs($staff, 'backpack')->get("/admin/staff/{$admin->id}/edit");
 
     $response->assertForbidden();
 });
@@ -1365,7 +1368,7 @@ test('the configured admin email can see and update all users including admins',
         'email' => 'listed-staff@example.com',
     ]);
 
-    $listResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/staff/search', [
+    $listResponse = $this->actingAs($ownerAdmin, 'backpack')->post('/admin/staff/search', [
         'draw' => 1,
         'start' => 0,
         'length' => 20,
@@ -1377,16 +1380,16 @@ test('the configured admin email can see and update all users including admins',
     $listResponse->assertSee($staff->email);
     $listResponse->assertSee('Admin');
     $listResponse->assertSee('Staff');
-    $listResponse->assertDontSee('/tasks?staff_id='.$otherAdmin->id, false);
-    $listResponse->assertSee('/tasks?staff_id='.$staff->id, false);
+    $listResponse->assertDontSee('staff_id='.$otherAdmin->id, false);
+    $listResponse->assertSee('staff_id='.$staff->id, false);
 
-    $editResponse = $this->actingAs($ownerAdmin, 'backpack')->get("/staff/{$otherAdmin->id}/edit");
+    $editResponse = $this->actingAs($ownerAdmin, 'backpack')->get("/admin/staff/{$otherAdmin->id}/edit");
 
     $editResponse->assertSuccessful();
     $editResponse->assertSee('name="role"', false);
     $editResponse->assertSee('name="password"', false);
 
-    $updateResponse = $this->actingAs($ownerAdmin, 'backpack')->put("/staff/{$otherAdmin->id}", [
+    $updateResponse = $this->actingAs($ownerAdmin, 'backpack')->put("/admin/staff/{$otherAdmin->id}", [
         'id' => $otherAdmin->id,
         'name' => 'Updated Admin Name',
         'email' => 'updated-admin@example.com',
@@ -1415,7 +1418,7 @@ test('regular admins still only manage staff users', function () {
     ]);
     $staff = User::factory()->staff()->create();
 
-    $listResponse = $this->actingAs($regularAdmin, 'backpack')->post('/staff/search', [
+    $listResponse = $this->actingAs($regularAdmin, 'backpack')->post('/admin/staff/search', [
         'draw' => 1,
         'start' => 0,
         'length' => 20,
@@ -1426,7 +1429,7 @@ test('regular admins still only manage staff users', function () {
     $listResponse->assertSee($staff->email);
     $listResponse->assertDontSee($ownerAdmin->email);
 
-    $editResponse = $this->actingAs($regularAdmin, 'backpack')->get("/staff/{$ownerAdmin->id}/edit");
+    $editResponse = $this->actingAs($regularAdmin, 'backpack')->get("/admin/staff/{$ownerAdmin->id}/edit");
 
     $editResponse->assertForbidden();
 });
@@ -1442,7 +1445,7 @@ test('restricted sidebar tools are visible only to the configured admin email', 
     ]);
     $staff = User::factory()->staff()->create();
 
-    $adminResponse = $this->actingAs($admin, 'backpack')->get('/dashboard');
+    $adminResponse = $this->actingAs($admin, 'backpack')->get('/admin/dashboard');
 
     $adminResponse->assertSuccessful();
     $adminResponse->assertSee('Laravel Logs');
@@ -1450,9 +1453,9 @@ test('restricted sidebar tools are visible only to the configured admin email', 
     $adminResponse->assertSee('Backups');
     $adminResponse->assertSee('/backup');
     $adminResponse->assertSee('Activity Logs');
-    $adminResponse->assertSee('/activity-log');
+    $adminResponse->assertSee('/admin/activity-log');
 
-    $otherAdminResponse = $this->actingAs($otherAdmin, 'backpack')->get('/dashboard');
+    $otherAdminResponse = $this->actingAs($otherAdmin, 'backpack')->get('/admin/dashboard');
 
     $otherAdminResponse->assertSuccessful();
     $otherAdminResponse->assertSee('Staff');
@@ -1460,10 +1463,10 @@ test('restricted sidebar tools are visible only to the configured admin email', 
     $otherAdminResponse->assertDontSee('Backups');
     $otherAdminResponse->assertDontSee('Activity Logs');
 
-    $staffResponse = $this->actingAs($staff, 'backpack')->get('/dashboard');
+    $staffResponse = $this->actingAs($staff, 'backpack')->get('/admin/dashboard');
 
     $staffResponse->assertSuccessful();
-    $staffResponse->assertDontSee('/staff');
+    $staffResponse->assertDontSee('/admin/staff');
     $staffResponse->assertDontSee('Laravel Logs');
     $staffResponse->assertDontSee('Backups');
     $staffResponse->assertDontSee('Activity Logs');
@@ -1485,19 +1488,19 @@ test('activity buttons are visible only to the configured admin email', function
         'assignee_id' => $staff->id,
     ]);
 
-    $allowedStaffPage = $this->actingAs($allowedAdmin, 'backpack')->get('/staff');
+    $allowedStaffPage = $this->actingAs($allowedAdmin, 'backpack')->get('/admin/staff');
     $allowedStaffPage->assertSuccessful();
     $allowedStaffPage->assertSee('activity-log-model');
 
-    $allowedTasksPage = $this->actingAs($allowedAdmin, 'backpack')->get('/tasks');
+    $allowedTasksPage = $this->actingAs($allowedAdmin, 'backpack')->get('/admin/tasks');
     $allowedTasksPage->assertSuccessful();
     $allowedTasksPage->assertSee('activity-log-model');
 
-    $otherStaffPage = $this->actingAs($otherAdmin, 'backpack')->get('/staff');
+    $otherStaffPage = $this->actingAs($otherAdmin, 'backpack')->get('/admin/staff');
     $otherStaffPage->assertSuccessful();
     $otherStaffPage->assertDontSee('activity-log-model');
 
-    $otherTasksPage = $this->actingAs($otherAdmin, 'backpack')->get('/tasks');
+    $otherTasksPage = $this->actingAs($otherAdmin, 'backpack')->get('/admin/tasks');
     $otherTasksPage->assertSuccessful();
     $otherTasksPage->assertDontSee('activity-log-model');
 });
@@ -1511,19 +1514,19 @@ test('an admin can impersonate another user and return to their own account', fu
         'email' => 'target@example.com',
     ]);
 
-    $impersonateResponse = $this->actingAs($admin, 'backpack')->post("/staff/{$staff->id}/impersonate");
+    $impersonateResponse = $this->actingAs($admin, 'backpack')->post("/admin/staff/{$staff->id}/impersonate");
 
-    $impersonateResponse->assertRedirect('/dashboard');
+    $impersonateResponse->assertRedirect('/admin/dashboard');
     expect(auth('backpack')->user()?->is($staff))->toBeTrue();
     expect(session('impersonator_id'))->toBe($admin->id);
 
-    $dashboardResponse = $this->actingAs($staff, 'backpack')->get('/dashboard');
+    $dashboardResponse = $this->actingAs($staff, 'backpack')->get('/admin/dashboard');
     $dashboardResponse->assertSuccessful();
     $dashboardResponse->assertSee('Stop Impersonating');
 
-    $stopResponse = $this->actingAs($staff, 'backpack')->post('/stop-impersonating');
+    $stopResponse = $this->actingAs($staff, 'backpack')->post('/admin/stop-impersonating');
 
-    $stopResponse->assertRedirect('/dashboard');
+    $stopResponse->assertRedirect('/admin/dashboard');
     expect(auth('backpack')->user()?->is($admin))->toBeTrue();
     expect(session()->has('impersonator_id'))->toBeFalse();
 });
@@ -1532,7 +1535,7 @@ test('staff users cannot impersonate other users', function () {
     $staffUser = User::factory()->staff()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($staffUser, 'backpack')->post("/staff/{$staff->id}/impersonate");
+    $response = $this->actingAs($staffUser, 'backpack')->post("/admin/staff/{$staff->id}/impersonate");
 
     $response->assertForbidden();
 });
@@ -1554,7 +1557,7 @@ test('the task list shows a scheduled date range filter and applies it to task s
         'scheduled_for' => '2026-09-10',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/tasks?start_date=2026-08-01&end_date=2026-08-31');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/tasks?start_date=2026-08-01&end_date=2026-08-31');
 
     $response->assertSuccessful();
     $response->assertSee('Start Date');
@@ -1562,7 +1565,7 @@ test('the task list shows a scheduled date range filter and applies it to task s
     $response->assertSee('value="2026-08-01"', false);
     $response->assertSee('value="2026-08-31"', false);
 
-    $searchResponse = $this->actingAs($admin, 'backpack')->post('/tasks/search?start_date=2026-08-01&end_date=2026-08-31', [
+    $searchResponse = $this->actingAs($admin, 'backpack')->post('/admin/tasks/search?start_date=2026-08-01&end_date=2026-08-31', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -1593,7 +1596,7 @@ test('the task list shows an admin-only staff filter and applies it to task sear
         'title' => 'Zoe unfiltered task',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get("/tasks?staff_id={$staffOne->id}");
+    $response = $this->actingAs($admin, 'backpack')->get("/admin/tasks?staff_id={$staffOne->id}");
 
     $response->assertSuccessful();
     $response->assertSee('Staff Member');
@@ -1602,7 +1605,7 @@ test('the task list shows an admin-only staff filter and applies it to task sear
     $response->assertSee($staffTwo->name);
     $response->assertSee((string) $staffOne->id);
 
-    $searchResponse = $this->actingAs($admin, 'backpack')->post("/tasks/search?staff_id={$staffOne->id}", [
+    $searchResponse = $this->actingAs($admin, 'backpack')->post("/admin/tasks/search?staff_id={$staffOne->id}", [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -1634,7 +1637,7 @@ test('the task list shows a status filter and applies it to task search results'
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/tasks?status=completed');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/tasks?status=completed');
 
     $response->assertSuccessful();
     $response->assertSee('Status');
@@ -1643,7 +1646,7 @@ test('the task list shows a status filter and applies it to task search results'
     $response->assertSee('Completed');
     $response->assertSee('value="completed" selected', false);
 
-    $searchResponse = $this->actingAs($admin, 'backpack')->post('/tasks/search?status=completed', [
+    $searchResponse = $this->actingAs($admin, 'backpack')->post('/admin/tasks/search?status=completed', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -1677,20 +1680,20 @@ test('admins see a pending approvals sidebar badge and can open the approval que
         'approved_as_completed' => true,
     ]);
 
-    $dashboardResponse = $this->actingAs($admin, 'backpack')->get('/dashboard');
+    $dashboardResponse = $this->actingAs($admin, 'backpack')->get('/admin/dashboard');
 
     $dashboardResponse->assertSuccessful();
     $dashboardResponse->assertSee('Pending Approvals');
     $dashboardResponse->assertSee('>1<', false);
     $dashboardResponse->assertSee('approval_status=pending');
 
-    $queueResponse = $this->actingAs($admin, 'backpack')->get('/tasks?status=completed&approval_status=pending');
+    $queueResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks?status=completed&approval_status=pending');
 
     $queueResponse->assertSuccessful();
     $queueResponse->assertSee('Completion Approval');
     $queueResponse->assertSee('Pending Approval');
 
-    $searchResponse = $this->actingAs($admin, 'backpack')->post('/tasks/search?status=completed&approval_status=pending', [
+    $searchResponse = $this->actingAs($admin, 'backpack')->post('/admin/tasks/search?status=completed&approval_status=pending', [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -1718,7 +1721,7 @@ test('an admin can approve a completed task from the pending approval queue acti
         'approved_as_completed' => false,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post("/tasks/{$task->id}/approve-completed");
+    $response = $this->actingAs($admin, 'backpack')->post("/admin/tasks/{$task->id}/approve-completed");
 
     $response->assertRedirect();
 
@@ -1757,13 +1760,13 @@ test('an admin can approve all pending completed tasks at once', function () {
         'approved_as_completed' => true,
     ]);
 
-    $queueResponse = $this->actingAs($admin, 'backpack')->get('/tasks?status=completed&approval_status=pending');
+    $queueResponse = $this->actingAs($admin, 'backpack')->get('/admin/tasks?status=completed&approval_status=pending');
 
     $queueResponse->assertSuccessful();
     $queueResponse->assertSee('Approve All Pending');
     $queueResponse->assertSee("return confirm('Approve all pending completed tasks?');", false);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/tasks/approve-completed-all');
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/tasks/approve-completed-all');
 
     $response->assertRedirect();
 
@@ -1787,7 +1790,7 @@ test('an admin can approve all pending completed tasks at once', function () {
 test('staff users do not see the staff filter on the task list', function () {
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($staff, 'backpack')->get('/tasks');
+    $response = $this->actingAs($staff, 'backpack')->get('/admin/tasks');
 
     $response->assertSuccessful();
     $response->assertDontSee('Staff Member');
@@ -1804,7 +1807,7 @@ test('a staff member cannot edit another persons task', function () {
         'assignee_id' => $owner->id,
     ]);
 
-    $response = $this->actingAs($otherStaff, 'backpack')->get("/tasks/{$task->id}/edit");
+    $response = $this->actingAs($otherStaff, 'backpack')->get("/admin/tasks/{$task->id}/edit");
 
     $response->assertForbidden();
 });
@@ -1863,7 +1866,7 @@ test('a staff members dashboard shows their open tasks and completion stats for 
         'status' => TaskStatus::Pending->value,
     ]);
 
-    $response = $this->actingAs($staff, 'backpack')->get('/dashboard');
+    $response = $this->actingAs($staff, 'backpack')->get('/admin/dashboard');
 
     $response->assertSuccessful();
     $response->assertSee('Total Assigned Today');
@@ -1940,7 +1943,7 @@ test('admins can view the summary page with staff totals and status distribution
         'approved_as_completed' => true,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get('/summary?start_date=2026-08-01&end_date=2026-08-31');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/summary?start_date=2026-08-01&end_date=2026-08-31');
 
     $response->assertSuccessful();
     $response->assertSee('Task Summary');
@@ -1972,7 +1975,7 @@ test('admins can approve a completed task from the edit form', function () {
         'approved_as_completed' => false,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->put("/tasks/{$task->id}", [
+    $response = $this->actingAs($admin, 'backpack')->put("/admin/tasks/{$task->id}", [
         'id' => $task->id,
         'title' => $task->title,
         'description' => $task->description,
@@ -1999,7 +2002,7 @@ test('admins can approve a completed task from the edit form', function () {
 test('the summary page shows all time when no date range is selected', function () {
     $admin = User::factory()->admin()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->get('/summary');
+    $response = $this->actingAs($admin, 'backpack')->get('/admin/summary');
 
     $response->assertSuccessful();
     $response->assertSee('Task Status Distribution (All Time)');
@@ -2008,7 +2011,7 @@ test('the summary page shows all time when no date range is selected', function 
 test('staff users cannot access the summary page', function () {
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($staff, 'backpack')->get('/summary');
+    $response = $this->actingAs($staff, 'backpack')->get('/admin/summary');
 
     $response->assertForbidden();
 });
@@ -2016,7 +2019,7 @@ test('staff users cannot access the summary page', function () {
 test('the help page shows staff only the features they can use', function () {
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($staff, 'backpack')->get('/help');
+    $response = $this->actingAs($staff, 'backpack')->get('/admin/help');
 
     $response->assertSuccessful();
     $response->assertSee('Help Center');
@@ -2034,7 +2037,7 @@ test('the help page shows admins their management features and restricts owner t
     $admin = User::factory()->admin()->create(['email' => 'admin@example.com']);
     $owner = User::factory()->admin()->create(['email' => 'owner@example.com']);
 
-    $adminResponse = $this->actingAs($admin, 'backpack')->get('/help');
+    $adminResponse = $this->actingAs($admin, 'backpack')->get('/admin/help');
 
     $adminResponse->assertSuccessful();
     $adminResponse->assertSee('Approvals and Bulk Changes');
@@ -2042,7 +2045,7 @@ test('the help page shows admins their management features and restricts owner t
     $adminResponse->assertSee('Staff Accounts');
     $adminResponse->assertDontSee('Restricted Administrator Tools');
 
-    $ownerResponse = $this->actingAs($owner, 'backpack')->get('/help');
+    $ownerResponse = $this->actingAs($owner, 'backpack')->get('/admin/help');
 
     $ownerResponse->assertSuccessful();
     $ownerResponse->assertSee('Restricted Administrator Tools');

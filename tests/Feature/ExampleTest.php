@@ -5,16 +5,19 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-test('guests are redirected from the root page to the admin login page', function () {
+test('the public home page introduces StaffX and gives guests a way to sign in', function () {
     $response = $this->get('/');
 
-    $response->assertRedirect('/register');
+    $response->assertSuccessful()
+        ->assertSeeText('The calm command center for work that')
+        ->assertSee(backpack_url('login'), false);
 });
 
-test('authenticated users are redirected from the root page to the dashboard', function () {
+test('the public home page gives authenticated users access to their workspace', function () {
     $admin = User::factory()->admin()->create();
 
     $response = $this->actingAs($admin, 'backpack')->get('/');
 
-    $response->assertRedirect('/dashboard');
+    $response->assertSuccessful()
+        ->assertSee(backpack_url('dashboard'), false);
 });

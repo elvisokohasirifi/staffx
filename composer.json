@@ -68,6 +68,7 @@
         "post-update-cmd": [
             "@php artisan vendor:publish --tag=laravel-assets --ansi --force",
             "@php artisan boost:update --ansi",
+            "@php artisan storage:link --force --no-interaction",
             "@php artisan basset:cache"
         ],
         "post-root-package-install": [
@@ -82,6 +83,7 @@
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"
         ],
         "post-install-cmd": [
+            "@php artisan storage:link --force --no-interaction",
             "@php artisan basset:cache"
         ]
     },

@@ -19,7 +19,7 @@ test('an admin can create a recurring task and it immediately assigns todays tas
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $response = $this->actingAs($admin, 'backpack')->post('/recurring-tasks', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/recurring-tasks', [
         'title' => 'Morning devotion follow-up',
         'description' => 'Check and confirm daily devotion feedback.',
         'assignee_id' => $staff->id,
@@ -138,13 +138,13 @@ test('admins can view recurring tasks and staff cannot', function () {
     $admin = User::factory()->admin()->create();
     $staff = User::factory()->staff()->create();
 
-    $adminResponse = $this->actingAs($admin, 'backpack')->get('/recurring-tasks');
+    $adminResponse = $this->actingAs($admin, 'backpack')->get('/admin/recurring-tasks');
 
     $adminResponse->assertSuccessful();
     $adminResponse->assertSee('Recurring Tasks');
     $adminResponse->assertSee('Recurring Days');
 
-    $staffResponse = $this->actingAs($staff, 'backpack')->get('/recurring-tasks');
+    $staffResponse = $this->actingAs($staff, 'backpack')->get('/admin/recurring-tasks');
 
     $staffResponse->assertForbidden();
 });
@@ -169,7 +169,7 @@ test('the recurring task list shows filters and applies them to search results',
         'is_active' => false,
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->get("/recurring-tasks?staff_id={$staffOne->id}&recurring_day=monday&active=1");
+    $response = $this->actingAs($admin, 'backpack')->get("/admin/recurring-tasks?staff_id={$staffOne->id}&recurring_day=monday&active=1");
 
     $response->assertSuccessful();
     $response->assertSee('Filters');
@@ -177,7 +177,7 @@ test('the recurring task list shows filters and applies them to search results',
     $response->assertSee('Recurring Day');
     $response->assertSee('Active Status');
 
-    $searchResponse = $this->actingAs($admin, 'backpack')->post("/recurring-tasks/search?staff_id={$staffOne->id}&recurring_day=monday&active=1", [
+    $searchResponse = $this->actingAs($admin, 'backpack')->post("/admin/recurring-tasks/search?staff_id={$staffOne->id}&recurring_day=monday&active=1", [
         'start' => 0,
         'length' => 20,
         'search' => ['value' => ''],
@@ -201,7 +201,7 @@ test('an admin can bulk create recurring tasks for one staff member', function (
         'email' => 'recurring-staff@example.com',
     ]);
 
-    $response = $this->actingAs($admin, 'backpack')->post('/recurring-tasks/bulk-create', [
+    $response = $this->actingAs($admin, 'backpack')->post('/admin/recurring-tasks/bulk-create', [
         'assignee_id' => $staff->id,
         'scheduled_time' => '07:45',
         'recurring_days' => ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
@@ -209,7 +209,7 @@ test('an admin can bulk create recurring tasks for one staff member', function (
         'task_lines' => "Morning attendance\nSend daily reminder\nPrepare follow-up sheet",
     ]);
 
-    $response->assertRedirect('/recurring-tasks');
+    $response->assertRedirect('/admin/recurring-tasks');
 
     $recurringTasks = RecurringTask::query()
         ->where('admin_id', $admin->id)

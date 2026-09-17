@@ -28,9 +28,9 @@ return [
     |--------------------------------------------------------------------------
     */
 
-    // The prefix used in all base routes (empty string means /dashboard, /login, etc.)
+    // The prefix used in all base routes (for example, /admin/dashboard and /admin/login).
     // You can make sure all your URLs use this prefix by using the backpack_url() helper instead of url()
-    'route_prefix' => '',
+    'route_prefix' => 'admin',
 
     // The web middleware (group) used in all base & CRUD routes
     // If you've modified your "web" middleware group (ex: removed sessions), you can use a different

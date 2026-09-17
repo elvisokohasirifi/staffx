@@ -14,11 +14,11 @@ uses(RefreshDatabase::class);
 test('a visitor can register an organization and becomes its first admin when tenancy is enabled', function () {
     config()->set('app.is_tenant', true);
 
-    $this->get('/login')
+    $this->get('/admin/login')
         ->assertSuccessful()
         ->assertSee('Register your organization');
 
-    $response = $this->post('/register-organization', [
+    $response = $this->post('/admin/register-organization', [
         'organization_name' => 'Grace World Church',
         'name' => 'Organization Owner',
         'email' => 'owner@example.com',
@@ -26,7 +26,7 @@ test('a visitor can register an organization and becomes its first admin when te
         'password_confirmation' => 'password123',
     ]);
 
-    $response->assertRedirect('/dashboard');
+    $response->assertRedirect('/admin/dashboard');
 
     $user = User::withoutGlobalScopes()->where('email', 'owner@example.com')->firstOrFail();
     $organization = Organization::query()->findOrFail($user->organization_id);
@@ -46,7 +46,7 @@ test('an organization owner can add another administrator to the organization', 
     $owner = User::factory()->admin()->create(['organization_id' => $organization->id]);
     $organization->update(['owner_id' => $owner->id]);
 
-    $response = $this->actingAs($owner, 'backpack')->post('/staff', [
+    $response = $this->actingAs($owner, 'backpack')->post('/admin/staff', [
         'name' => 'Additional Administrator',
         'email' => 'additional-admin@example.com',
         'role' => UserRole::Admin->value,
@@ -69,7 +69,7 @@ test('an organization owner can assign department admins and filter the summary 
     $departmentAdmin = User::factory()->admin()->create(['organization_id' => $organization->id]);
     $organization->update(['owner_id' => $owner->id]);
 
-    $departmentResponse = $this->actingAs($owner, 'backpack')->post('/departments', [
+    $departmentResponse = $this->actingAs($owner, 'backpack')->post('/admin/departments', [
         'name' => 'Operations',
         'administrators' => [$departmentAdmin->id],
     ]);
@@ -105,7 +105,7 @@ test('an organization owner can assign department admins and filter the summary 
         'status' => TaskStatus::Pending,
     ]);
 
-    $summaryResponse = $this->actingAs($owner, 'backpack')->get("/summary?department_id={$department->id}");
+    $summaryResponse = $this->actingAs($owner, 'backpack')->get("/admin/summary?department_id={$department->id}");
 
     $summaryResponse->assertSuccessful();
     $summaryResponse->assertSee('Viewing Operations.');
@@ -127,13 +127,13 @@ test('tenant admins can bulk assign staff members to a department', function () 
     $firstStaffMember = User::factory()->staff()->create(['organization_id' => $organization->id]);
     $secondStaffMember = User::factory()->staff()->create(['organization_id' => $organization->id]);
 
-    $pageResponse = $this->actingAs($admin, 'backpack')->get('/staff/bulk-assign-department');
+    $pageResponse = $this->actingAs($admin, 'backpack')->get('/admin/staff/bulk-assign-department');
 
     $pageResponse->assertSuccessful();
     $pageResponse->assertSee('Bulk Assign Department');
     $pageResponse->assertSee($firstStaffMember->name);
 
-    $assignmentResponse = $this->actingAs($admin, 'backpack')->post('/staff/bulk-assign-department', [
+    $assignmentResponse = $this->actingAs($admin, 'backpack')->post('/admin/staff/bulk-assign-department', [
         'staff_ids' => [$firstStaffMember->id, $secondStaffMember->id],
         'department_id' => $department->id,
     ]);
@@ -146,7 +146,7 @@ test('tenant admins can bulk assign staff members to a department', function () 
     $otherOrganization = Organization::factory()->create();
     $otherStaffMember = User::factory()->staff()->create(['organization_id' => $otherOrganization->id]);
 
-    $crossOrganizationResponse = $this->actingAs($admin, 'backpack')->post('/staff/bulk-assign-department', [
+    $crossOrganizationResponse = $this->actingAs($admin, 'backpack')->post('/admin/staff/bulk-assign-department', [
         'staff_ids' => [$otherStaffMember->id],
         'department_id' => $department->id,
     ]);
@@ -181,17 +181,17 @@ test('tenant administrators cannot view or assign work across organizations', fu
         'status' => TaskStatus::Pending,
     ]);
 
-    $response = $this->actingAs($firstAdmin, 'backpack')->get('/tasks');
+    $response = $this->actingAs($firstAdmin, 'backpack')->get('/admin/tasks');
 
     $response->assertSuccessful();
     $response->assertSee($firstStaff->name);
     $response->assertDontSee($secondStaff->name);
 
-    $showResponse = $this->actingAs($firstAdmin, 'backpack')->get("/tasks/{$secondTask->id}/show");
+    $showResponse = $this->actingAs($firstAdmin, 'backpack')->get("/admin/tasks/{$secondTask->id}/show");
 
     $showResponse->assertNotFound();
 
-    $assignmentResponse = $this->actingAs($firstAdmin, 'backpack')->post('/tasks/bulk-create', [
+    $assignmentResponse = $this->actingAs($firstAdmin, 'backpack')->post('/admin/tasks/bulk-create', [
         'scheduled_for' => today()->toDateString(),
         'scheduled_time' => '23:59',
         'task_lines' => 'Cross organization task',
@@ -217,18 +217,18 @@ test('the configured admin email can view every organization and operational too
         'organization_id' => $secondOrganization->id,
     ]);
 
-    $platformDashboard = $this->actingAs($platformAdmin, 'backpack')->get('/dashboard');
+    $platformDashboard = $this->actingAs($platformAdmin, 'backpack')->get('/admin/dashboard');
 
     $platformDashboard->assertSuccessful();
     $platformDashboard->assertSee('Organizations');
     $platformDashboard->assertSee('Laravel Logs');
     $platformDashboard->assertSee('Activity Logs');
 
-    $organizationsResponse = $this->actingAs($platformAdmin, 'backpack')->get('/organizations');
+    $organizationsResponse = $this->actingAs($platformAdmin, 'backpack')->get('/admin/organizations');
 
     $organizationsResponse->assertSuccessful();
 
-    $organizationsSearchResponse = $this->actingAs($platformAdmin, 'backpack')->post('/organizations/search', [
+    $organizationsSearchResponse = $this->actingAs($platformAdmin, 'backpack')->post('/admin/organizations/search', [
         'draw' => 1,
         'start' => 0,
         'length' => 20,
@@ -239,7 +239,7 @@ test('the configured admin email can view every organization and operational too
     $organizationsSearchResponse->assertSee($firstOrganization->name);
     $organizationsSearchResponse->assertSee($secondOrganization->name);
 
-    $organizationDashboard = $this->actingAs($organizationAdmin, 'backpack')->get('/dashboard');
+    $organizationDashboard = $this->actingAs($organizationAdmin, 'backpack')->get('/admin/dashboard');
 
     $organizationDashboard->assertSuccessful();
     $organizationDashboard->assertDontSee('Organizations');
@@ -247,14 +247,14 @@ test('the configured admin email can view every organization and operational too
     $organizationDashboard->assertDontSee('Activity Logs');
 
     $this->actingAs($organizationAdmin, 'backpack')
-        ->get('/organizations')
+        ->get('/admin/organizations')
         ->assertForbidden();
 });
 
 test('organization registration remains unavailable when tenancy is disabled', function () {
     config()->set('app.is_tenant', false);
 
-    $response = $this->get('/register-organization');
+    $response = $this->get('/admin/register-organization');
 
     $response->assertNotFound();
 });
