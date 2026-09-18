@@ -19,6 +19,7 @@
         <x-backpack::menu-item title="Departments" icon="la la-sitemap" :link="backpack_url('departments')" />
     @endif
     <x-backpack::menu-item title="Summary" icon="la la-chart-pie" :link="route('summary.index')" />
+    <x-backpack::menu-item title="Performance Insights" icon="la la-chart-bar" :link="route('performance-insights.index')" />
     @if(backpack_user()?->hasAdminEmailAccess())
         @if(config('app.is_tenant'))
             <x-backpack::menu-item title="Organizations" icon="la la-building" :link="backpack_url('organizations')" />

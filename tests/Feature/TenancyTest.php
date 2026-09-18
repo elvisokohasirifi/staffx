@@ -251,6 +251,48 @@ test('the configured admin email can view every organization and operational too
         ->assertForbidden();
 });
 
+test('the configured admin email can rename only the default organization', function () {
+    config()->set('app.is_tenant', true);
+    config()->set('app.admin_email', 'platform-admin@example.com');
+    app(TenantContext::class)->clear();
+
+    $defaultOrganization = Organization::factory()->create([
+        'name' => 'Laravel Default Organization',
+        'is_default' => true,
+    ]);
+    $otherOrganization = Organization::factory()->create(['name' => 'Other Organization']);
+    $platformAdmin = User::factory()->admin()->create([
+        'email' => 'platform-admin@example.com',
+        'organization_id' => $defaultOrganization->id,
+    ]);
+
+    $this->actingAs($platformAdmin, 'backpack')
+        ->get("/admin/organizations/{$defaultOrganization->id}/edit")
+        ->assertSuccessful();
+
+    $this->actingAs($platformAdmin, 'backpack')
+        ->put("/admin/organizations/{$defaultOrganization->id}", [
+            'id' => $defaultOrganization->id,
+            'name' => 'StaffX Default Organization',
+        ])
+        ->assertRedirect('/admin/organizations');
+
+    expect($defaultOrganization->refresh()->name)->toBe('StaffX Default Organization');
+
+    $this->actingAs($platformAdmin, 'backpack')
+        ->get("/admin/organizations/{$otherOrganization->id}/edit")
+        ->assertForbidden();
+
+    $this->actingAs($platformAdmin, 'backpack')
+        ->put("/admin/organizations/{$otherOrganization->id}", [
+            'id' => $otherOrganization->id,
+            'name' => 'Renamed Other Organization',
+        ])
+        ->assertForbidden();
+
+    expect($otherOrganization->refresh()->name)->toBe('Other Organization');
+});
+
 test('organization registration remains unavailable when tenancy is disabled', function () {
     config()->set('app.is_tenant', false);
 

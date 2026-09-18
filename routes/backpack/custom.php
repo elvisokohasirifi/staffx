@@ -26,6 +26,10 @@ Route::group([
     Route::post('recurring-tasks/bulk-create', 'RecurringTaskCrudController@bulkStore')->name('recurring-tasks.bulk-store');
     Route::crud('recurring-tasks', 'RecurringTaskCrudController');
     Route::get('summary', 'SummaryController@index')->name('summary.index');
+    Route::get('performance-insights', 'PerformanceInsightsController@index')->name('performance-insights.index');
+    Route::post('performance-insights', 'PerformanceInsightsController@store')->name('performance-insights.store');
+    Route::get('performance-insights/{performanceQuery}', 'PerformanceInsightsController@show')->name('performance-insights.show');
+    Route::delete('performance-insights/{performanceQuery}', 'PerformanceInsightsController@destroy')->name('performance-insights.destroy');
     Route::get('help', 'HelpController@index')->name('help.index');
     Route::get('my-tasks/bulk-create', 'AdminPersonalTaskCrudController@bulkCreate')->name('my-tasks.bulk-create');
     Route::post('my-tasks/bulk-create', 'AdminPersonalTaskCrudController@bulkStore')->name('my-tasks.bulk-store');

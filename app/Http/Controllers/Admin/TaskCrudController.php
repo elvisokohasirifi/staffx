@@ -711,6 +711,8 @@ class TaskCrudController extends CrudController
             ->with('assignee')
             ->where('status', TaskStatus::Completed->value)
             ->where('approved_as_completed', false)
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         $approvedTasks->each(fn (Task $task) => $task->update([
